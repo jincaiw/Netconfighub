@@ -93,6 +93,8 @@ npm ci
 npm run build
 ```
 
+Frontend tooling requires Node.js 20.19 or newer.
+
 Playwright e2e tests:
 
 ```bash
@@ -122,4 +124,3 @@ v0.1.0
 ```
 
 See `RELEASE_NOTES.md` for release contents and verification notes.
-

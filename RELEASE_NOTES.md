@@ -29,6 +29,8 @@ Initial NetConfigHub release.
   strings.
 - E2E tests use isolated runtime state and a fixed frontend port to avoid stale
   local services.
+- Frontend build tooling was upgraded to Vite 8 and `@vitejs/plugin-vue` 6,
+  resolving the Vite/esbuild moderate-severity audit findings.
 
 ### Verification
 
@@ -37,6 +39,7 @@ The release was verified with:
 ```bash
 go test ./...
 go vet ./...
+cd web && npm audit --json
 cd web && npm run build
 go build -o netconfighub-api ./cmd/api
 cd web && npx playwright test
@@ -47,9 +50,9 @@ Observed verification results:
 
 - Go unit/integration tests: passed.
 - Go vet: passed.
+- npm audit: 0 vulnerabilities.
 - Frontend production build: passed.
 - Backend binary build: passed.
 - Playwright e2e tests: 39 passed.
 - Comprehensive API smoke test: 83 passed, 0 failed.
 - Browser verification: login and device list page rendered correctly.
-
