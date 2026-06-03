@@ -1,0 +1,16 @@
+[Unit]
+Description=NetConfigHub - Network Configuration Backup Platform
+After=network.target
+
+[Service]
+Type=simple
+User=nch
+Group=nch
+WorkingDirectory=/opt/netconfighub
+ExecStart=/opt/netconfighub/netconfighub
+Restart=on-failure
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

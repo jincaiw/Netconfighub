@@ -1,0 +1,50 @@
+server:
+  host: "127.0.0.1"
+  port: 8080
+  jwt_secret: "e2e-test-secret"
+  jwt_expire_hours: 24
+  tls:
+    enabled: false
+    cert_file: ""
+    key_file: ""
+
+database:
+  driver: "sqlite"
+  sqlite_path: "/tmp/netconfighub-e2e.db"
+  mysql_dsn: ""
+
+git:
+  repo_path: "/tmp/netconfighub-e2e-configs"
+  author_name: "NetConfigHub E2E"
+  author_email: "netconfighub-e2e@local"
+  gpg_sign_key: ""
+  git_crypt_enabled: false
+  git_crypt_key_file: ""
+
+scheduler:
+  default_interval: "1h"
+  worker_pool_size: 2
+  max_retries: 1
+  retry_delay: "1s"
+  task_timeout: "10s"
+
+log:
+  level: "error"
+  format: "json"
+
+sanitize:
+  enabled: true
+  mask_passwords: true
+  mask_snmp_community: true
+  mask_enable_secret: true
+
+notify:
+  enabled: false
+  type: "webhook"
+  webhook_url: ""
+  smtp_host: ""
+  smtp_port: 25
+  smtp_user: ""
+  smtp_pass: ""
+  from_addr: ""
+  to_addrs: ""

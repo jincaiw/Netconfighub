@@ -1,0 +1,29 @@
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Runtime data
+data/
+*.db
+*.db-*
+
+# Local binaries
+netconfighub
+netconfighub-api
+
+# Go build/test artifacts
+*.test
+coverage.out
+
+# Frontend dependencies and reports
+web/node_modules/
+web/test-results/
+web/playwright-report/
+web/.vite/
+
+# Logs and temporary files
+*.log
+tmp/
+temp/

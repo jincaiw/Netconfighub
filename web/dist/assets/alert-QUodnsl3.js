@@ -1,0 +1,1 @@
+import{g as r,a as t,d as a}from"./index-B4cwbn4g.js";function s(e){return r("/alerts",e)}function l(){return r("/alerts/unread-count")}function u(e){return t(`/alerts/${e}/read`)}function d(){return t("/alerts/read-all")}function o(e){return a(`/alerts/${e}`)}export{l as a,d as b,o as d,s as g,u as m};
