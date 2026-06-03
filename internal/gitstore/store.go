@@ -185,8 +185,9 @@ func (s *Store) gitCryptLock() error {
 }
 
 func (s *Store) WriteConfig(groupName, deviceName, content string) (string, error) {
-	if groupName == "" {
-		groupName = "ungrouped"
+	groupName, deviceName, err := safeConfigPathComponents(groupName, deviceName)
+	if err != nil {
+		return "", err
 	}
 
 	if err := s.gitCryptUnlock(); err != nil {
@@ -257,8 +258,9 @@ func (s *Store) WriteConfig(groupName, deviceName, content string) (string, erro
 }
 
 func (s *Store) ConfigHistory(groupName, deviceName string, limit int) ([]*object.Commit, error) {
-	if groupName == "" {
-		groupName = "ungrouped"
+	groupName, deviceName, err := safeConfigPathComponents(groupName, deviceName)
+	if err != nil {
+		return nil, err
 	}
 
 	filePath := filepath.Join(groupName, deviceName, "running-config.txt")
@@ -293,8 +295,9 @@ func (s *Store) ConfigHistory(groupName, deviceName string, limit int) ([]*objec
 }
 
 func (s *Store) ReadConfigAtRevision(groupName, deviceName, hash string) (string, error) {
-	if groupName == "" {
-		groupName = "ungrouped"
+	groupName, deviceName, err := safeConfigPathComponents(groupName, deviceName)
+	if err != nil {
+		return "", err
 	}
 
 	if err := s.gitCryptUnlock(); err != nil {
@@ -333,8 +336,9 @@ func (s *Store) ReadConfigAtRevision(groupName, deviceName, hash string) (string
 }
 
 func (s *Store) ReadLatestConfig(groupName, deviceName string) (string, error) {
-	if groupName == "" {
-		groupName = "ungrouped"
+	groupName, deviceName, err := safeConfigPathComponents(groupName, deviceName)
+	if err != nil {
+		return "", err
 	}
 
 	if err := s.gitCryptUnlock(); err != nil {
@@ -395,6 +399,40 @@ func (s *Store) ListDeviceConfigs() ([]DeviceInfo, error) {
 	}
 
 	return devices, nil
+}
+
+func safeConfigPathComponents(groupName, deviceName string) (string, string, error) {
+	groupName = strings.TrimSpace(groupName)
+	deviceName = strings.TrimSpace(deviceName)
+	if groupName == "" {
+		groupName = "ungrouped"
+	}
+	if err := safePathComponent("分组名称", groupName); err != nil {
+		return "", "", err
+	}
+	if err := safePathComponent("设备名称", deviceName); err != nil {
+		return "", "", err
+	}
+	return groupName, deviceName, nil
+}
+
+func safePathComponent(label, value string) error {
+	if value == "" {
+		return fmt.Errorf("%s不能为空", label)
+	}
+	if value == "." || value == ".." {
+		return fmt.Errorf("%s不能为 . 或 ..", label)
+	}
+	for _, r := range value {
+		if r < 0x20 || r == 0x7f {
+			return fmt.Errorf("%s不能包含控制字符", label)
+		}
+		switch r {
+		case '/', '\\', ':':
+			return fmt.Errorf("%s不能包含路径分隔符或冒号", label)
+		}
+	}
+	return nil
 }
 
 func (s *Store) Push(remote, branch string) error {

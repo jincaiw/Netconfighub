@@ -50,6 +50,9 @@ func NewDeviceService(
 }
 
 func (s *deviceServiceImpl) Create(ctx context.Context, device *model.Device) (*model.Device, error) {
+	if err := validateStorageName("设备名称", device.Name); err != nil {
+		return nil, err
+	}
 	if !device.Vendor.IsValid() {
 		return nil, fmt.Errorf("无效的厂商类型，支持: cisco, h3c, huawei, ruijie")
 	}
@@ -127,6 +130,9 @@ func (s *deviceServiceImpl) List(ctx context.Context, groupID *uint, vendor *str
 }
 
 func (s *deviceServiceImpl) Update(ctx context.Context, id uint, device *model.Device) (*model.Device, error) {
+	if err := validateStorageName("设备名称", device.Name); err != nil {
+		return nil, err
+	}
 	existing, err := s.deviceRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("设备不存在")

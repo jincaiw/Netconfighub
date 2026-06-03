@@ -23,8 +23,8 @@ func NewGroupService(groupRepo repository.GroupRepository, deviceRepo repository
 }
 
 func (s *groupServiceImpl) Create(ctx context.Context, group *model.Group) (*model.Group, error) {
-	if group.Name == "" {
-		return nil, fmt.Errorf("分组名称不能为空")
+	if err := validateStorageName("分组名称", group.Name); err != nil {
+		return nil, err
 	}
 	if err := s.groupRepo.Create(ctx, group); err != nil {
 		return nil, fmt.Errorf("创建分组失败，名称可能已存在")
@@ -50,6 +50,9 @@ func (s *groupServiceImpl) Update(ctx context.Context, id uint, group *model.Gro
 		return nil, fmt.Errorf("分组不存在")
 	}
 	if group.Name != "" {
+		if err := validateStorageName("分组名称", group.Name); err != nil {
+			return nil, err
+		}
 		existing.Name = group.Name
 	}
 	if group.Description != "" {

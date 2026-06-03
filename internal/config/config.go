@@ -20,18 +20,26 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Host           string    `yaml:"host"`
-	Port           int       `yaml:"port"`
-	JWTSecret      string    `yaml:"jwt_secret"`
-	JWTExpireHours int       `yaml:"jwt_expire_hours"`
-	EncryptionKey  string    `yaml:"encryption_key"`
-	TLS            TLSConfig `yaml:"tls"`
+	Host           string     `yaml:"host"`
+	Port           int        `yaml:"port"`
+	JWTSecret      string     `yaml:"jwt_secret"`
+	JWTExpireHours int        `yaml:"jwt_expire_hours"`
+	EncryptionKey  string     `yaml:"encryption_key"`
+	TLS            TLSConfig  `yaml:"tls"`
+	CORS           CORSConfig `yaml:"cors"`
 }
 
 type TLSConfig struct {
 	Enabled  bool   `yaml:"enabled" json:"enabled"`
 	CertFile string `yaml:"cert_file" json:"cert_file"`
 	KeyFile  string `yaml:"key_file" json:"key_file"`
+}
+
+type CORSConfig struct {
+	AllowedOrigins []string `yaml:"allowed_origins"`
+	AllowedMethods []string `yaml:"allowed_methods"`
+	AllowedHeaders []string `yaml:"allowed_headers"`
+	MaxAgeSeconds  int      `yaml:"max_age_seconds"`
 }
 
 type DatabaseConfig struct {
@@ -81,6 +89,18 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	if cfg.Server.EncryptionKey == "" {
 		cfg.Server.EncryptionKey = "netconfighub-default-enc-key-32byte"
+	}
+	if len(cfg.Server.CORS.AllowedOrigins) == 0 {
+		cfg.Server.CORS.AllowedOrigins = []string{"*"}
+	}
+	if len(cfg.Server.CORS.AllowedMethods) == 0 {
+		cfg.Server.CORS.AllowedMethods = []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"}
+	}
+	if len(cfg.Server.CORS.AllowedHeaders) == 0 {
+		cfg.Server.CORS.AllowedHeaders = []string{"Origin", "Content-Type", "Authorization"}
+	}
+	if cfg.Server.CORS.MaxAgeSeconds == 0 {
+		cfg.Server.CORS.MaxAgeSeconds = 86400
 	}
 	if cfg.Database.Driver == "" {
 		cfg.Database.Driver = "sqlite"

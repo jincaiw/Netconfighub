@@ -1,5 +1,54 @@
 # Release Notes
 
+## v0.1.1
+
+Production-readiness and Linux binary release.
+
+### Highlights
+
+- Added configurable CORS policy via `server.cors.*`.
+- Hardened embedded frontend routing with explicit path normalization.
+- Rejected path-like device and group names before they can be used in Git
+  storage paths.
+- Added Git storage path-component validation as a defensive second layer.
+- Added first-run admin bootstrap environment variables:
+  `NCH_ADMIN_USERNAME` and `NCH_ADMIN_PASSWORD`.
+- Updated Docker build images to match current Go/Node toolchain requirements
+  and use `CGO_ENABLED=0` for the Go binary.
+- Added bilingual documentation: English README by default and
+  `README.zh-CN.md` for Chinese.
+- Published a direct Linux amd64 binary asset.
+
+### Verification
+
+The release was verified with:
+
+```bash
+go test ./...
+go vet ./...
+cd web && npm audit --package-lock-only --json
+cd web && npm run build
+cd web && npx playwright test
+bash test_api_v2.sh
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/netconfighub-v0.1.1-linux-amd64 ./cmd/api
+```
+
+Observed verification results:
+
+- Go unit/integration tests: passed.
+- Go vet: passed.
+- npm audit: 0 vulnerabilities.
+- Frontend production build: passed.
+- Playwright e2e tests: 39 passed.
+- Comprehensive API smoke test: 83 passed, 0 failed.
+- Linux amd64 binary build: passed.
+
+### Assets
+
+- `netconfighub-v0.1.1-linux-amd64.tar.gz`
+  - SHA256:
+    `89a40e6569d5dfc8356be2f5c50933b49d4b97561dc0872ade69396481275589`
+
 ## v0.1.0
 
 Initial NetConfigHub release.

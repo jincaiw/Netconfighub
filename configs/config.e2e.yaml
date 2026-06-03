@@ -7,6 +7,20 @@ server:
     enabled: false
     cert_file: ""
     key_file: ""
+  cors:
+    allowed_origins:
+      - "*"
+    allowed_methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+    allowed_headers:
+      - Origin
+      - Content-Type
+      - Authorization
+    max_age_seconds: 86400
 
 database:
   driver: "sqlite"

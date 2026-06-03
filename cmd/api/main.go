@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -108,17 +109,7 @@ func main() {
 
 	engine := gin.Default()
 
-	engine.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
-		c.Header("Access-Control-Max-Age", "86400")
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
-		}
-		c.Next()
-	})
+	engine.Use(corsMiddleware(cfg.Server.CORS))
 
 	rateLimiter := middleware.NewRateLimiter(5000, time.Minute)
 	engine.Use(rateLimiter.Middleware())
@@ -181,15 +172,16 @@ func setupFrontend(engine *gin.Engine) {
 	}
 
 	engine.NoRoute(func(c *gin.Context) {
-		path := c.Request.URL.Path
-		if strings.HasPrefix(path, "/api") {
+		requestPath := c.Request.URL.Path
+		if strings.HasPrefix(requestPath, "/api") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "not found"})
 			return
 		}
 
-		cleanPath := strings.TrimPrefix(path, "/")
-		if cleanPath == "" {
-			cleanPath = "index.html"
+		cleanPath, ok := normalizeFrontendPath(requestPath)
+		if !ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "bad request"})
+			return
 		}
 
 		data, err := fs.ReadFile(subFS, cleanPath)
@@ -213,6 +205,59 @@ func setupFrontend(engine *gin.Engine) {
 		c.Writer.WriteHeader(http.StatusOK)
 		c.Writer.Write(data)
 	})
+}
+
+func corsMiddleware(corsCfg config.CORSConfig) gin.HandlerFunc {
+	allowedOrigins := make(map[string]struct{}, len(corsCfg.AllowedOrigins))
+	allowWildcard := false
+	for _, origin := range corsCfg.AllowedOrigins {
+		origin = strings.TrimSpace(origin)
+		if origin == "" {
+			continue
+		}
+		if origin == "*" {
+			allowWildcard = true
+		}
+		allowedOrigins[origin] = struct{}{}
+	}
+	methods := strings.Join(corsCfg.AllowedMethods, ", ")
+	headers := strings.Join(corsCfg.AllowedHeaders, ", ")
+	maxAge := fmt.Sprintf("%d", corsCfg.MaxAgeSeconds)
+
+	return func(c *gin.Context) {
+		origin := c.Request.Header.Get("Origin")
+		switch {
+		case allowWildcard:
+			c.Header("Access-Control-Allow-Origin", "*")
+		case origin != "":
+			if _, ok := allowedOrigins[origin]; ok {
+				c.Header("Access-Control-Allow-Origin", origin)
+				c.Header("Vary", "Origin")
+			}
+		}
+		c.Header("Access-Control-Allow-Methods", methods)
+		c.Header("Access-Control-Allow-Headers", headers)
+		c.Header("Access-Control-Max-Age", maxAge)
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	}
+}
+
+func normalizeFrontendPath(requestPath string) (string, bool) {
+	if strings.ContainsRune(requestPath, '\x00') {
+		return "", false
+	}
+	cleanPath := strings.TrimPrefix(path.Clean("/"+requestPath), "/")
+	if cleanPath == "" || cleanPath == "." {
+		cleanPath = "index.html"
+	}
+	if !fs.ValidPath(cleanPath) {
+		return "", false
+	}
+	return cleanPath, true
 }
 
 func isPageRoute(path string) bool {
@@ -299,15 +344,33 @@ func autoMigrate(db *gorm.DB) error {
 }
 
 func initDefaultAdmin(authService service.AuthService) {
-	admin, err := authService.InitAdmin(nil, "admin", "admin")
+	username, password, usingDefault := defaultAdminCredentials()
+	admin, err := authService.InitAdmin(nil, username, password)
 	if err != nil {
 		return
 	}
 	log.Printf("========================================")
 	log.Printf("已创建默认管理员账户")
-	log.Printf("用户名: admin")
-	log.Printf("密码: admin")
-	log.Printf("请立即修改默认密码！")
+	log.Printf("用户名: %s", username)
+	if usingDefault {
+		log.Printf("密码: admin")
+		log.Printf("警告: 正在使用内置默认管理员密码，请立即修改！")
+	} else {
+		log.Printf("密码: 已通过 NCH_ADMIN_PASSWORD 设置")
+	}
 	log.Printf("管理员 ID: %d", admin.ID)
 	log.Printf("========================================")
+}
+
+func defaultAdminCredentials() (username, password string, usingDefault bool) {
+	username = strings.TrimSpace(os.Getenv("NCH_ADMIN_USERNAME"))
+	password = os.Getenv("NCH_ADMIN_PASSWORD")
+	if username == "" {
+		username = "admin"
+	}
+	if password == "" {
+		password = "admin"
+		usingDefault = true
+	}
+	return username, password, usingDefault
 }

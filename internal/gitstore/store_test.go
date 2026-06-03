@@ -108,6 +108,34 @@ func TestWriteConfig(t *testing.T) {
 	}
 }
 
+func TestWriteConfigRejectsUnsafePathComponents(t *testing.T) {
+	store, dir := newTestStore(t)
+	defer os.RemoveAll(dir)
+
+	tests := []struct {
+		group  string
+		device string
+	}{
+		{group: "../outside", device: "device1"},
+		{group: "group1", device: "../device1"},
+		{group: "group/name", device: "device1"},
+		{group: "group1", device: "device/name"},
+		{group: "group1", device: ".."},
+	}
+	for _, tt := range tests {
+		t.Run(tt.group+"-"+tt.device, func(t *testing.T) {
+			if _, err := store.WriteConfig(tt.group, tt.device, "config"); err == nil {
+				t.Fatalf("WriteConfig(%q, %q) expected error", tt.group, tt.device)
+			}
+		})
+	}
+
+	outside := filepath.Join(dir, "..", "outside")
+	if _, err := os.Stat(outside); !os.IsNotExist(err) {
+		t.Fatalf("unsafe path should not be created: %s", outside)
+	}
+}
+
 func TestWriteConfigUngrouped(t *testing.T) {
 	store, dir := newTestStore(t)
 	defer os.RemoveAll(dir)

@@ -1,5 +1,7 @@
 # NetConfigHub
 
+[中文文档](README.zh-CN.md)
+
 NetConfigHub is a network device configuration backup and management platform for
 small and mid-sized network operations teams. It provides a Go backend, embedded
 Vue web UI, REST APIs, scheduled/manual backup jobs, Git-backed configuration
@@ -44,6 +46,14 @@ password: admin
 Change the default password and `server.jwt_secret` before using the system in a
 real environment.
 
+For first-run production bootstrap, set these environment variables before
+starting the service:
+
+```bash
+export NCH_ADMIN_USERNAME=admin
+export NCH_ADMIN_PASSWORD='change-this-strong-password'
+```
+
 ## Docker
 
 ```bash
@@ -65,6 +75,9 @@ Important settings in `configs/config.yaml`:
 
 - `server.host`, `server.port`: HTTP bind address.
 - `server.jwt_secret`: JWT signing secret. Replace the default value.
+- `server.encryption_key`: encryption key for stored device credentials.
+- `server.cors.allowed_origins`: browser origins allowed to call the API. Use a
+  concrete HTTPS origin in production instead of `*`.
 - `database.driver`: `sqlite` or `mysql`.
 - `database.sqlite_path`: SQLite database path.
 - `database.mysql_dsn`: MySQL DSN when using MySQL.
@@ -115,12 +128,18 @@ bash test_api_v2.sh
 `web/dist` is intentionally committed because `web/embed.go` embeds it into the
 Go binary.
 
+Build a Linux binary from macOS or Linux:
+
+```bash
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/netconfighub-linux-amd64 ./cmd/api
+```
+
 ## Release
 
 Current release tag:
 
 ```text
-v0.1.0
+v0.1.1
 ```
 
 See `RELEASE_NOTES.md` for release contents and verification notes.
