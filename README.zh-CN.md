@@ -1,6 +1,6 @@
 # NetConfigHub
 
-[English](README.md)
+中文 | [English](README.md)
 
 NetConfigHub 是面向中小型网络运维团队的网络设备配置备份与管理平台。它包含 Go 后端、内嵌 Vue Web UI、REST API、手动/定时备份任务、Git 配置版本管理、基线比对、告警、Hook、审计日志和 API Token 访问能力。
 
@@ -47,6 +47,58 @@ password: admin
 ```bash
 export NCH_ADMIN_USERNAME=admin
 export NCH_ADMIN_PASSWORD='change-this-strong-password'
+```
+
+## Linux 单文件部署
+
+在 Linux 主机上构建，或者从 macOS 交叉编译 Linux 二进制：
+
+```bash
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o netconfighub ./cmd/api
+```
+
+把二进制和配置文件放到标准位置：
+
+```bash
+sudo mkdir -p /opt/netconfighub /etc/netconfighub /var/lib/netconfighub
+sudo install -m 0755 netconfighub /opt/netconfighub/netconfighub
+sudo install -m 0644 configs/config.yaml /etc/netconfighub/config.yaml
+```
+
+然后修改 `/etc/netconfighub/config.yaml`，至少完成这些生产配置：
+
+- 将 `database.sqlite_path` 改为 `/var/lib/netconfighub/netconfighub.db`
+- 将 `git.repo_path` 改为 `/var/lib/netconfighub/configs`
+- 替换 `server.jwt_secret` 和 `server.encryption_key`
+- 将 `server.cors.allowed_origins` 收紧为真实浏览器来源
+
+启动方式：
+
+```bash
+NCH_CONFIG_PATH=/etc/netconfighub/config.yaml /opt/netconfighub/netconfighub
+```
+
+如果你要直接接入 `systemd`，仓库里已经提供了 `deploy/netconfighub.service`。
+
+## systemd 服务
+
+`deploy/netconfighub.service` 适合搭配独立服务账号，并默认使用这些路径：
+
+- 二进制：`/opt/netconfighub/netconfighub`
+- 工作目录：`/opt/netconfighub`
+- 配置文件：`/etc/netconfighub/config.yaml`
+
+安装并启用：
+
+```bash
+sudo useradd --system --home /opt/netconfighub --shell /usr/sbin/nologin nch || true
+sudo install -d -o nch -g nch /opt/netconfighub /etc/netconfighub /var/lib/netconfighub
+sudo install -m 0755 netconfighub /opt/netconfighub/netconfighub
+sudo install -m 0644 configs/config.yaml /etc/netconfighub/config.yaml
+sudo cp deploy/netconfighub.service /etc/systemd/system/netconfighub.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now netconfighub
+sudo systemctl status netconfighub
 ```
 
 ## Docker
@@ -134,4 +186,3 @@ v0.1.1
 ```
 
 发布内容和验证记录见 `RELEASE_NOTES.md`。
-

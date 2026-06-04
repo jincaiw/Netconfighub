@@ -1,6 +1,6 @@
 # NetConfigHub
 
-[中文文档](README.zh-CN.md)
+English | [中文文档](README.zh-CN.md)
 
 NetConfigHub is a network device configuration backup and management platform for
 small and mid-sized network operations teams. It provides a Go backend, embedded
@@ -52,6 +52,60 @@ starting the service:
 ```bash
 export NCH_ADMIN_USERNAME=admin
 export NCH_ADMIN_PASSWORD='change-this-strong-password'
+```
+
+## Linux Single-File Deployment
+
+Build the Linux binary on a Linux host or cross-compile it from macOS:
+
+```bash
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o netconfighub ./cmd/api
+```
+
+Place the binary and configuration in standard locations:
+
+```bash
+sudo mkdir -p /opt/netconfighub /etc/netconfighub /var/lib/netconfighub
+sudo install -m 0755 netconfighub /opt/netconfighub/netconfighub
+sudo install -m 0644 configs/config.yaml /etc/netconfighub/config.yaml
+```
+
+Then update `/etc/netconfighub/config.yaml` for production use:
+
+- set `database.sqlite_path` to `/var/lib/netconfighub/netconfighub.db`
+- set `git.repo_path` to `/var/lib/netconfighub/configs`
+- replace `server.jwt_secret` and `server.encryption_key`
+- narrow `server.cors.allowed_origins` to your real browser origin
+
+Start the service with:
+
+```bash
+NCH_CONFIG_PATH=/etc/netconfighub/config.yaml /opt/netconfighub/netconfighub
+```
+
+If you want a one-step install target, the repository also includes
+`deploy/netconfighub.service` for `systemd`.
+
+## systemd Service
+
+`deploy/netconfighub.service` is designed for a dedicated service account and
+these paths:
+
+- binary: `/opt/netconfighub/netconfighub`
+- working directory: `/opt/netconfighub`
+- config file: `/etc/netconfighub/config.yaml`
+
+Install and enable it with:
+
+```bash
+sudo useradd --system --home /opt/netconfighub --shell /usr/sbin/nologin nch || true
+sudo install -d -o nch -g nch /opt/netconfighub /etc/netconfighub /var/lib/netconfighub
+sudo install -m 0755 netconfighub /opt/netconfighub/netconfighub
+sudo install -m 0644 configs/config.yaml /etc/netconfighub/config.yaml
+sudo cp deploy/netconfighub.service /etc/systemd/system/netconfighub.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now netconfighub
+sudo systemctl status netconfighub
 ```
 
 ## Docker
