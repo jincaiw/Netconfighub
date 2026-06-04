@@ -186,3 +186,7 @@ v0.1.1
 ```
 
 发布内容和验证记录见 `RELEASE_NOTES.md`。
+
+## 许可证
+
+本项目采用 MIT License，详见 [LICENSE](LICENSE)。

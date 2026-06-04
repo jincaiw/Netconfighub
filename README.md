@@ -197,3 +197,7 @@ v0.1.1
 ```
 
 See `RELEASE_NOTES.md` for release contents and verification notes.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
