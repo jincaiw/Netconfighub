@@ -3,6 +3,7 @@ server:
   port: 8080
   jwt_secret: "change-me-in-production"
   jwt_expire_hours: 24
+  encryption_key: "netconfighub-default-enc-key-32byte"
   tls:
     enabled: false
     cert_file: ""

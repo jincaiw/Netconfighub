@@ -1,8 +1,8 @@
 #!/bin/bash
 # Comprehensive API Test Script for NetConfigHub
-# Tests ALL API endpoints on http://localhost:8080
+# Tests ALL API endpoints on http://127.0.0.1:18080
 
-BASE="http://localhost:8080"
+BASE="${NCH_API_BASE:-http://127.0.0.1:18080}"
 PASS=0
 FAIL=0
 FAILURES=""

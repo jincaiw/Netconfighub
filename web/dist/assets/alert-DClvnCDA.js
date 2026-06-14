@@ -1,1 +1,0 @@
-import{i as e,n as t,t as n}from"./api-BkmakfS-.js";function r(e){return t(`/alerts`,e)}function i(){return t(`/alerts/unread-count`)}function a(t){return e(`/alerts/${t}/read`)}function o(){return e(`/alerts/read-all`)}function s(e){return n(`/alerts/${e}`)}export{o as a,a as i,r as n,i as r,s as t};

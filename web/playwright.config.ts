@@ -5,19 +5,19 @@ export default defineConfig({
   timeout: 30000,
   retries: 1,
   use: {
-    baseURL: 'http://localhost:3100',
+    baseURL: 'http://127.0.0.1:13100',
     trace: 'on-first-retry',
   },
   webServer: [
     {
       command: 'cd .. && rm -f /tmp/netconfighub-e2e.db && rm -rf /tmp/netconfighub-e2e-configs && NCH_CONFIG_PATH=configs/config.e2e.yaml go run cmd/api/main.go',
-      port: 8080,
+      port: 18080,
       reuseExistingServer: false,
       timeout: 15000,
     },
     {
-      command: 'npm run dev -- --host 127.0.0.1 --port 3100',
-      port: 3100,
+      command: 'NCH_API_PROXY_TARGET=http://127.0.0.1:18080 npm run dev -- --host 127.0.0.1 --port 13100',
+      port: 13100,
       reuseExistingServer: false,
       timeout: 15000,
     },

@@ -17,6 +17,7 @@ netconfighub-api
 # Go build/test artifacts
 *.test
 coverage.out
+/dist/
 
 # Frontend dependencies and reports
 web/node_modules/

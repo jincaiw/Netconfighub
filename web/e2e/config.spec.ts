@@ -4,7 +4,7 @@ import { getAuthToken } from './helpers'
 test.describe('系统配置API', () => {
   test('获取配置列表', async ({ request }) => {
     const token = await getAuthToken()
-    const response = await request.get('http://localhost:8080/api/v1/configs', {
+    const response = await request.get('http://127.0.0.1:18080/api/v1/configs', {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
@@ -17,7 +17,7 @@ test.describe('系统配置API', () => {
   test('设置和获取配置', async ({ request }) => {
     const token = await getAuthToken()
     const configKey = `e2e_test_config_${Date.now()}`
-    const setRes = await request.put('http://localhost:8080/api/v1/configs', {
+    const setRes = await request.put('http://127.0.0.1:18080/api/v1/configs', {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -29,7 +29,7 @@ test.describe('系统配置API', () => {
     })
     expect(setRes.ok()).toBeTruthy()
 
-    const getRes = await request.get('http://localhost:8080/api/v1/configs', {
+    const getRes = await request.get('http://127.0.0.1:18080/api/v1/configs', {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
@@ -43,7 +43,7 @@ test.describe('系统配置API', () => {
 
   test('设置脱敏配置', async ({ request }) => {
     const token = await getAuthToken()
-    const response = await request.put('http://localhost:8080/api/v1/configs', {
+    const response = await request.put('http://127.0.0.1:18080/api/v1/configs', {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',

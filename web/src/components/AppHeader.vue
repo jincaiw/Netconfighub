@@ -98,6 +98,7 @@ const routeLabelMap: Record<string, string> = {
   FailedDevices: '失败设备',
   AlertList: '告警管理',
   BaselineManage: '基线管理',
+  AuditLogs: '审计日志',
   Settings: '系统设置',
 }
 
@@ -191,11 +192,12 @@ onUnmounted(() => {
 
 <style scoped>
 .app-header {
-  height: 56px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 0 24px;
+  background: rgba(255, 255, 255, 0.96);
 }
 
 .header-left {
@@ -297,5 +299,23 @@ onUnmounted(() => {
   font-size: 11px;
   color: rgba(0, 0, 0, 0.35);
   margin-top: 2px;
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    padding: 0 10px;
+  }
+
+  .admin-name {
+    display: none;
+  }
+
+  .header-right :deep(.n-space) {
+    gap: 2px !important;
+  }
+
+  .header-right :deep(.n-button__content) {
+    font-size: 0;
+  }
 }
 </style>

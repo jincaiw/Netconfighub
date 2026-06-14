@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io/fs"
 	"log"
@@ -36,18 +37,32 @@ import (
 	gormSqlite "github.com/glebarez/sqlite"
 )
 
+var version = "dev"
+
 func main() {
-	configPath := "configs/config.yaml"
-	if envPath := os.Getenv("NCH_CONFIG_PATH"); envPath != "" {
-		configPath = envPath
+	showVersion := flag.Bool("version", false, "print version and exit")
+	flag.Parse()
+	if *showVersion {
+		fmt.Printf("NetConfigHub %s\n", version)
+		return
 	}
 
-	cfg, err := config.LoadConfig(configPath)
+	configPath := "configs/config.yaml"
+	allowMissingConfig := true
+	if envPath := os.Getenv("NCH_CONFIG_PATH"); envPath != "" {
+		configPath = envPath
+		allowMissingConfig = false
+	}
+
+	cfg, err := config.LoadConfig(configPath, allowMissingConfig)
 	if err != nil {
 		log.Fatalf("加载配置文件失败: %v", err)
 	}
+	if err := config.ValidateProduction(cfg); err != nil {
+		log.Fatalf("%v", err)
+	}
 
-	log.Printf("配置加载成功: server=%s, database.driver=%s", cfg.Server.Addr(), cfg.Database.Driver)
+	log.Printf("NetConfigHub %s 配置加载成功: server=%s, database.driver=%s", version, cfg.Server.Addr(), cfg.Database.Driver)
 
 	db, err := initDatabase(cfg)
 	if err != nil {
@@ -107,6 +122,9 @@ func main() {
 	}
 	log.Println("调度器启动完成")
 
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("NCH_ENV")), "production") {
+		gin.SetMode(gin.ReleaseMode)
+	}
 	engine := gin.Default()
 
 	engine.Use(corsMiddleware(cfg.Server.CORS))
@@ -318,13 +336,28 @@ func initDatabase(cfg *config.Config) (*gorm.DB, error) {
 	}
 
 	db, err := gorm.Open(dialector, &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: logger.Default.LogMode(gormLogLevel(cfg.Log.Level)),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("连接数据库失败: %w", err)
 	}
 
 	return db, nil
+}
+
+func gormLogLevel(level string) logger.LogLevel {
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "debug":
+		return logger.Info
+	case "warn", "warning":
+		return logger.Warn
+	case "error":
+		return logger.Error
+	case "silent":
+		return logger.Silent
+	default:
+		return logger.Warn
+	}
 }
 
 func autoMigrate(db *gorm.DB) error {

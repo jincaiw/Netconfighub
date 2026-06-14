@@ -1,57 +1,93 @@
 <template>
   <div class="dashboard">
+    <div class="page-heading">
+      <div>
+        <h1>运维总览</h1>
+        <p>实时掌握设备备份运行状态，及时发现并处理异常。</p>
+      </div>
+      <n-button type="primary" @click="router.push('/devices')">管理设备</n-button>
+    </div>
+
     <n-grid :x-gap="16" :y-gap="16" :cols="4" responsive="screen" item-responsive>
       <n-gi span="4 m:2 l:1">
-        <n-card>
+        <n-card class="metric-card" hoverable @click="router.push('/devices')">
           <n-statistic label="设备总数" :value="stats.totalDevices">
             <template #prefix>
-              <n-icon :component="ServerOutline" />
+              <span class="metric-icon metric-icon--green">
+                <n-icon :component="ServerOutline" />
+              </span>
             </template>
           </n-statistic>
+          <div class="metric-footnote">已纳管网络设备</div>
         </n-card>
       </n-gi>
       <n-gi span="4 m:2 l:1">
-        <n-card>
+        <n-card class="metric-card" hoverable>
           <n-statistic label="备份成功率" :value="stats.successRate">
             <template #prefix>
-              <n-icon :component="CheckmarkCircleOutline" />
+              <span class="metric-icon metric-icon--green">
+                <n-icon :component="CheckmarkCircleOutline" />
+              </span>
             </template>
             <template #suffix>%</template>
           </n-statistic>
+          <div class="metric-footnote">基于全部备份任务</div>
         </n-card>
       </n-gi>
       <n-gi span="4 m:2 l:1">
-        <n-card>
+        <n-card class="metric-card" hoverable @click="router.push('/failed')">
           <n-statistic label="失败设备数" :value="stats.failedDevices">
             <template #prefix>
-              <n-icon :component="AlertCircleOutline" />
+              <span class="metric-icon metric-icon--red">
+                <n-icon :component="AlertCircleOutline" />
+              </span>
             </template>
           </n-statistic>
+          <div class="metric-footnote">需要尽快处理</div>
         </n-card>
       </n-gi>
       <n-gi span="4 m:2 l:1">
-        <n-card>
+        <n-card class="metric-card" hoverable @click="router.push('/alerts')">
           <n-statistic label="未读告警" :value="stats.unreadAlerts">
             <template #prefix>
-              <n-icon :component="NotificationsOutline" />
+              <span class="metric-icon metric-icon--amber">
+                <n-icon :component="NotificationsOutline" />
+              </span>
             </template>
           </n-statistic>
+          <div class="metric-footnote">待确认告警信息</div>
         </n-card>
       </n-gi>
     </n-grid>
 
-    <n-grid :x-gap="16" :y-gap="16" :cols="2" style="margin-top: 16px" responsive="screen" item-responsive>
-      <n-gi span="2 l:1">
-        <n-card title="最近备份任务">
-          <n-data-table :columns="taskColumns" :data="recentTasks" size="small" />
+    <div class="overview-grid">
+      <div>
+        <n-card class="overview-card" title="最近备份任务">
+          <template #header-extra>
+            <n-button text type="primary" @click="router.push('/devices')">查看设备</n-button>
+          </template>
+          <n-data-table
+            :columns="taskColumns"
+            :data="recentTasks"
+            :scroll-x="560"
+            size="small"
+          />
         </n-card>
-      </n-gi>
-      <n-gi span="2 l:1">
-        <n-card title="失败设备概览">
-          <n-data-table :columns="failedColumns" :data="failedDevices" size="small" />
+      </div>
+      <div>
+        <n-card class="overview-card" title="失败设备概览">
+          <template #header-extra>
+            <n-button text type="primary" @click="router.push('/failed')">查看全部</n-button>
+          </template>
+          <n-data-table
+            :columns="failedColumns"
+            :data="failedDevices"
+            :scroll-x="520"
+            size="small"
+          />
         </n-card>
-      </n-gi>
-    </n-grid>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -211,5 +247,117 @@ onMounted(() => {
 <style scoped>
 .dashboard {
   width: 100%;
+  max-width: 1680px;
+  margin: 0 auto;
+}
+
+.page-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.page-heading h1 {
+  color: #0f172a;
+  font-size: 28px;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+}
+
+.page-heading p {
+  margin-top: 7px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.metric-card {
+  min-height: 148px;
+  cursor: pointer;
+  border-color: #dfe7f1;
+}
+
+.metric-card :deep(.n-card__content) {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.metric-card :deep(.n-statistic-value__content) {
+  color: #0f172a;
+  font-size: 30px;
+  font-weight: 700;
+}
+
+.metric-card :deep(.n-statistic__label) {
+  color: #475569;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.metric-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 10px;
+  border-radius: 50%;
+  font-size: 22px;
+}
+
+.metric-icon--green {
+  color: #059669;
+  background: #e7f8f0;
+}
+
+.metric-icon--red {
+  color: #dc2626;
+  background: #fff0f0;
+}
+
+.metric-icon--amber {
+  color: #d97706;
+  background: #fff7e6;
+}
+
+.metric-footnote {
+  margin-top: 16px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(360px, 2fr);
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.overview-card {
+  min-height: 430px;
+  border-color: #dfe7f1;
+}
+
+@media (max-width: 1200px) {
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-heading {
+    align-items: center;
+  }
+
+  .page-heading h1 {
+    font-size: 24px;
+  }
+
+  .page-heading p {
+    max-width: 240px;
+  }
+
 }
 </style>

@@ -1,0 +1,12 @@
+.git
+.github
+.trae
+.DS_Store
+data
+dist
+tmp
+web/node_modules
+web/test-results
+web/playwright-report
+*.db
+*.log

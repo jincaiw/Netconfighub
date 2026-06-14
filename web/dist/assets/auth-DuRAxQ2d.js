@@ -1,0 +1,1 @@
+import{i as e,r as t}from"./api-CZuskCjY.js";function n(e){return t(`/auth/login`,e)}function r(){return t(`/auth/logout`)}function i(t){return e(`/auth/change-password`,t)}export{n,r,i as t};

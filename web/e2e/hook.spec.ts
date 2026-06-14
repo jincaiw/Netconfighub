@@ -7,7 +7,7 @@ test.afterAll(async () => {
   const token = await getAuthToken()
   for (const id of createdHookIds) {
     try {
-      await fetch(`http://localhost:8080/api/v1/hooks/${id}`, {
+      await fetch(`http://127.0.0.1:18080/api/v1/hooks/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       })
@@ -24,7 +24,7 @@ test.describe('Hook管理', () => {
 
   test('通过API创建Webhook Hook', async ({ request }) => {
     const token = await getAuthToken()
-    const response = await request.post('http://localhost:8080/api/v1/hooks', {
+    const response = await request.post('http://127.0.0.1:18080/api/v1/hooks', {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -46,7 +46,7 @@ test.describe('Hook管理', () => {
 
   test('通过API查询Hook列表', async ({ request }) => {
     const token = await getAuthToken()
-    const response = await request.get('http://localhost:8080/api/v1/hooks', {
+    const response = await request.get('http://127.0.0.1:18080/api/v1/hooks', {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
@@ -58,7 +58,7 @@ test.describe('Hook管理', () => {
 
   test('通过API删除Hook', async ({ request }) => {
     const token = await getAuthToken()
-    const createRes = await request.post('http://localhost:8080/api/v1/hooks', {
+    const createRes = await request.post('http://127.0.0.1:18080/api/v1/hooks', {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
@@ -74,7 +74,7 @@ test.describe('Hook管理', () => {
     const createBody = await createRes.json()
     const hookId = createBody.data.id
 
-    const deleteRes = await request.delete(`http://localhost:8080/api/v1/hooks/${hookId}`, {
+    const deleteRes = await request.delete(`http://127.0.0.1:18080/api/v1/hooks/${hookId}`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },

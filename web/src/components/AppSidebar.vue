@@ -1,5 +1,6 @@
 <template>
   <n-menu
+    inverted
     :collapsed="collapsed"
     :collapsed-width="64"
     :collapsed-icon-size="22"
@@ -83,3 +84,21 @@ function handleMenuSelect(key: string) {
   router.push({ name: key })
 }
 </script>
+
+<style scoped>
+:deep(.n-menu) {
+  padding: 14px 10px;
+}
+
+:deep(.n-menu-item) {
+  margin-bottom: 4px;
+}
+
+:deep(.n-menu-item-content) {
+  border-radius: 8px;
+}
+
+:deep(.n-menu-item-content--selected) {
+  font-weight: 600;
+}
+</style>

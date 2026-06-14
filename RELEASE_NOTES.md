@@ -1,5 +1,52 @@
 # Release Notes
 
+## v0.1.2
+
+Production hardening, UI refinement, and reproducible deployment release.
+
+### Highlights
+
+- Refined the login, dashboard, navigation, desktop, and mobile layouts.
+- Reduced the largest frontend JavaScript chunk from about 1.03 MB to 165 KB.
+- Added production startup validation for JWT, encryption, administrator
+  password, and CORS settings.
+- Added environment-only configuration for single-file and container
+  deployments.
+- Isolated Playwright and API test ports from local development services.
+- Added a non-root, health-checked Docker image and hardened systemd unit.
+- Added reproducible Linux amd64 release packaging and checksums.
+- Added bilingual deployment guides and three current application screenshots.
+
+### Verification
+
+The release is verified with:
+
+```bash
+go test ./...
+go vet ./...
+cd web && npm audit --json
+cd web && npm run build
+cd web && npx playwright test
+bash test_api_v2.sh
+make release-bundle VERSION=v0.1.2
+```
+
+Observed verification results:
+
+- Go unit/integration tests: passed.
+- Go vet: passed.
+- npm audit: 0 vulnerabilities.
+- Frontend production build: passed.
+- Playwright e2e tests: 39 passed.
+- Comprehensive API smoke test: 83 passed, 0 failed.
+- Linux amd64 static binary and Docker runtime smoke checks: passed.
+
+### Assets
+
+- `netconfighub-v0.1.2-linux-amd64.tar.gz`
+  - SHA256:
+    `7484a5862ea7b2d389e53dfe85e2914aa67ff8ce6bb3529e8eb2ccda272515db`
+
 ## v0.1.1
 
 Production-readiness and Linux binary release.

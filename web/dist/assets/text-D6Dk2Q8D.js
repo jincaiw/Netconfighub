@@ -1,0 +1,21 @@
+import{Et as e,Q as t,Vt as n,Yt as r,Z as i,Zt as a,g as o,s,wt as c,xt as l}from"./Button-v7qKim5p.js";import{b as u}from"./Tooltip-qMw84P-o.js";var d={headerFontSize1:`30px`,headerFontSize2:`22px`,headerFontSize3:`18px`,headerFontSize4:`16px`,headerFontSize5:`16px`,headerFontSize6:`16px`,headerMargin1:`28px 0 20px 0`,headerMargin2:`28px 0 20px 0`,headerMargin3:`28px 0 20px 0`,headerMargin4:`28px 0 18px 0`,headerMargin5:`28px 0 18px 0`,headerMargin6:`28px 0 18px 0`,headerPrefixWidth1:`16px`,headerPrefixWidth2:`16px`,headerPrefixWidth3:`12px`,headerPrefixWidth4:`12px`,headerPrefixWidth5:`12px`,headerPrefixWidth6:`12px`,headerBarWidth1:`4px`,headerBarWidth2:`4px`,headerBarWidth3:`3px`,headerBarWidth4:`3px`,headerBarWidth5:`3px`,headerBarWidth6:`3px`,pMargin:`16px 0 16px 0`,liMargin:`.25em 0 0 0`,olPadding:`0 0 0 2em`,ulPadding:`0 0 0 2em`};function f(e){let{primaryColor:t,textColor2:n,borderColor:r,lineHeight:i,fontSize:a,borderRadiusSmall:o,dividerColor:s,fontWeightStrong:c,textColor1:l,textColor3:u,infoColor:f,warningColor:p,errorColor:m,successColor:h,codeColor:g}=e;return Object.assign(Object.assign({},d),{aTextColor:t,blockquoteTextColor:n,blockquotePrefixColor:r,blockquoteLineHeight:i,blockquoteFontSize:a,codeBorderRadius:o,liTextColor:n,liLineHeight:i,liFontSize:a,hrColor:s,headerFontWeight:c,headerTextColor:l,pTextColor:n,pTextColor1Depth:l,pTextColor2Depth:n,pTextColor3Depth:u,pLineHeight:i,pFontSize:a,headerBarColor:t,headerBarColorPrimary:t,headerBarColorInfo:f,headerBarColorError:m,headerBarColorWarning:p,headerBarColorSuccess:h,textColor:n,textColor1Depth:l,textColor2Depth:n,textColor3Depth:u,textColorPrimary:t,textColorInfo:f,textColorSuccess:h,textColorWarning:p,textColorError:m,codeTextColor:n,codeColor:g,codeBorder:`1px solid #0000`})}var p={name:`Typography`,common:s,self:f},m=l(`text`,`
+ transition: color .3s var(--n-bezier);
+ color: var(--n-text-color);
+`,[c(`strong`,`
+ font-weight: var(--n-font-weight-strong);
+ `),c(`italic`,{fontStyle:`italic`}),c(`underline`,{textDecoration:`underline`}),c(`code`,`
+ line-height: 1.4;
+ display: inline-block;
+ font-family: var(--n-font-famliy-mono);
+ transition: 
+ color .3s var(--n-bezier),
+ border-color .3s var(--n-bezier),
+ background-color .3s var(--n-bezier);
+ box-sizing: border-box;
+ padding: .05em .35em 0 .35em;
+ border-radius: var(--n-code-border-radius);
+ font-size: .9em;
+ color: var(--n-code-text-color);
+ background-color: var(--n-code-color);
+ border: var(--n-code-border);
+ `)]),h=r({name:`Text`,props:Object.assign(Object.assign({},o.props),{code:Boolean,type:{type:String,default:`default`},delete:Boolean,strong:Boolean,italic:Boolean,underline:Boolean,depth:[String,Number],tag:String,as:{type:String,validator:()=>!0,default:void 0}}),setup(r){let{mergedClsPrefixRef:a,inlineThemeDisabled:s}=t(r),c=o(`Typography`,`-text`,m,p,r,a),l=n(()=>{let{depth:t,type:n}=r,i=n==="default"?t===void 0?`textColor`:`textColor${t}Depth`:e(`textColor`,n),{common:{fontWeightStrong:a,fontFamilyMono:o,cubicBezierEaseInOut:s},self:{codeTextColor:l,codeBorderRadius:u,codeColor:d,codeBorder:f,[i]:p}}=c.value;return{"--n-bezier":s,"--n-text-color":p,"--n-font-weight-strong":a,"--n-font-famliy-mono":o,"--n-code-border-radius":u,"--n-code-text-color":l,"--n-code-color":d,"--n-code-border":f}}),d=s?i(`text`,n(()=>`${r.type[0]}${r.depth||``}`),l,r):void 0;return{mergedClsPrefix:a,compitableTag:u(r,[`as`,`tag`]),cssVars:s?void 0:l,themeClass:d?.themeClass,onRender:d?.onRender}},render(){var e,t;let{mergedClsPrefix:n}=this;(e=this.onRender)==null||e.call(this);let r=[`${n}-text`,this.themeClass,{[`${n}-text--code`]:this.code,[`${n}-text--delete`]:this.delete,[`${n}-text--strong`]:this.strong,[`${n}-text--italic`]:this.italic,[`${n}-text--underline`]:this.underline}],i=(t=this.$slots).default?.call(t);return this.code?a(`code`,{class:r,style:this.cssVars},this.delete?a(`del`,null,i):i):this.delete?a(`del`,{class:r,style:this.cssVars},i):a(this.compitableTag||`span`,{class:r,style:this.cssVars},i)}});export{p as n,h as t};

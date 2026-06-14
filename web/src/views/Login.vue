@@ -1,9 +1,21 @@
 <template>
   <div class="login-container">
+    <section class="brand-panel">
+      <div class="brand-mark">N</div>
+      <div class="brand-copy">
+        <h1>NetConfigHub</h1>
+        <p>让网络设备配置备份、版本追踪与基线审计保持清晰可控。</p>
+      </div>
+      <div class="brand-features">
+        <span>自动备份与失败重试</span>
+        <span>Git 版本历史与差异追踪</span>
+        <span>基线偏差与安全审计</span>
+      </div>
+    </section>
     <div class="login-content">
       <div class="login-header">
-        <h1 class="login-title">NetConfigHub</h1>
-        <p class="login-subtitle">网络设备配置备份管理系统</p>
+        <h1 class="login-title">登录管理控制台</h1>
+        <p class="login-subtitle">使用管理员账户继续</p>
       </div>
       <n-card class="login-card">
         <n-form ref="formRef" :model="formData" :rules="rules" label-placement="top">
@@ -97,40 +109,166 @@ async function handleLogin() {
 <style scoped>
 .login-container {
   width: 100%;
-  height: 100vh;
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(420px, 46%) 1fr;
+  background: #f4f7fb;
+}
+
+.brand-panel {
+  position: relative;
   display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 9vw;
+  overflow: hidden;
+  color: #f8fafc;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(16, 185, 129, 0.22), transparent 28%),
+    linear-gradient(145deg, #071a33 0%, #0b2749 100%);
+}
+
+.brand-panel::after {
+  content: '';
+  position: absolute;
+  right: -140px;
+  bottom: -140px;
+  width: 420px;
+  height: 420px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 70px rgba(148, 163, 184, 0.05),
+    0 0 0 140px rgba(148, 163, 184, 0.03);
+}
+
+.brand-mark {
+  width: 52px;
+  height: 52px;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  border-radius: 14px;
+  color: #34d399;
+  background: rgba(16, 185, 129, 0.1);
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.brand-copy {
+  position: relative;
+  z-index: 1;
+  margin-top: 34px;
+  max-width: 560px;
+}
+
+.brand-copy h1 {
+  font-size: clamp(36px, 4vw, 58px);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+
+.brand-copy p {
+  margin-top: 20px;
+  color: #b9c8dc;
+  font-size: 17px;
+  line-height: 1.8;
+}
+
+.brand-features {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 14px;
+  margin-top: 48px;
+  color: #dbe6f3;
+  font-size: 14px;
+}
+
+.brand-features span::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 12px;
+  border-radius: 50%;
+  background: #34d399;
 }
 
 .login-content {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
 }
 
 .login-header {
-  text-align: center;
-  margin-bottom: 32px;
+  width: 420px;
+  margin-bottom: 24px;
 }
 
 .login-title {
-  font-size: 36px;
+  font-size: 28px;
   font-weight: 700;
-  color: #fff;
-  letter-spacing: 2px;
+  color: #0f172a;
+  letter-spacing: -0.02em;
   margin-bottom: 8px;
 }
 
 .login-subtitle {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.85);
+  font-size: 14px;
+  color: #64748b;
 }
 
 .login-card {
   width: 420px;
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  border-color: #dfe7f1;
+  border-radius: 12px;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+}
+
+.login-card :deep(.n-card__content) {
+  padding: 30px;
+}
+
+@media (max-width: 900px) {
+  .login-container {
+    grid-template-columns: 1fr;
+  }
+
+  .brand-panel {
+    min-height: 220px;
+    padding: 36px 28px;
+  }
+
+  .brand-copy {
+    margin-top: 18px;
+  }
+
+  .brand-copy h1 {
+    font-size: 32px;
+  }
+
+  .brand-copy p {
+    margin-top: 10px;
+    font-size: 14px;
+  }
+
+  .brand-features {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .brand-panel {
+    min-height: 190px;
+  }
+
+  .login-header,
+  .login-card {
+    width: 100%;
+  }
 }
 </style>

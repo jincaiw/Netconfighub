@@ -1,8 +1,9 @@
 server:
   host: "127.0.0.1"
-  port: 8080
+  port: 18080
   jwt_secret: "e2e-test-secret"
   jwt_expire_hours: 24
+  encryption_key: "e2e-test-encryption-key-32-bytes!"
   tls:
     enabled: false
     cert_file: ""

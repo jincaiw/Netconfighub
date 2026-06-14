@@ -1,0 +1,1 @@
+import{$t as e,ct as t}from"./Button-v7qKim5p.js";import{i as n}from"./index-CESIsNoN.js";function r(){let r=e(n,null);return r===null&&t(`use-dialog`,`No outer <n-dialog-provider /> founded.`),r}export{r as t};

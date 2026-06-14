@@ -19,16 +19,32 @@ history, baseline comparison, alerts, hooks, audit logs, and API-token access.
 - SQLite by default, with MySQL configuration support.
 - Docker Compose and systemd deployment examples.
 
+## Demo
+
+### Login
+
+![NetConfigHub login](docs/images/demo-login.png)
+
+### Operations dashboard
+
+![NetConfigHub dashboard](docs/images/demo-dashboard.png)
+
+### Device management
+
+![NetConfigHub device management](docs/images/demo-devices.png)
+
 ## Quick Start
 
-Build and run the single binary:
+Build and run locally:
 
 ```bash
+make build-web
 go build -o netconfighub ./cmd/api
 ./netconfighub
 ```
 
-The default configuration is loaded from `configs/config.yaml`.
+The binary embeds the web UI. It loads `configs/config.yaml` when present and
+otherwise starts with development defaults under `./data`.
 
 Open:
 
@@ -43,85 +59,93 @@ username: admin
 password: admin
 ```
 
-Change the default password and `server.jwt_secret` before using the system in a
-real environment.
-
-For first-run production bootstrap, set these environment variables before
-starting the service:
-
-```bash
-export NCH_ADMIN_USERNAME=admin
-export NCH_ADMIN_PASSWORD='change-this-strong-password'
-```
+Do not use the development credentials in production.
 
 ## Linux Single-File Deployment
 
-Build the Linux binary on a Linux host or cross-compile it from macOS:
+Download the `v0.1.2` Linux archive from GitHub Releases, or build it:
 
 ```bash
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o netconfighub ./cmd/api
+make release-bundle VERSION=v0.1.2
 ```
 
-Place the binary and configuration in standard locations:
+Only the executable is required at runtime because the web UI and default
+configuration are embedded:
 
 ```bash
-sudo mkdir -p /opt/netconfighub /etc/netconfighub /var/lib/netconfighub
-sudo install -m 0755 netconfighub /opt/netconfighub/netconfighub
-sudo install -m 0644 configs/config.yaml /etc/netconfighub/config.yaml
+tar -xzf netconfighub-v0.1.2-linux-amd64.tar.gz
+cd netconfighub-v0.1.2-linux-amd64
+
+export NCH_ENV=production
+export NCH_DATA_DIR="$PWD/data"
+export NCH_ADMIN_PASSWORD='replace-with-a-strong-password'
+export NCH_JWT_SECRET="$(openssl rand -hex 32)"
+export NCH_ENCRYPTION_KEY="$(openssl rand -hex 32)"
+export NCH_CORS_ALLOWED_ORIGINS='https://nch.example.com'
+./netconfighub
 ```
 
-Then update `/etc/netconfighub/config.yaml` for production use:
-
-- set `database.sqlite_path` to `/var/lib/netconfighub/netconfighub.db`
-- set `git.repo_path` to `/var/lib/netconfighub/configs`
-- replace `server.jwt_secret` and `server.encryption_key`
-- narrow `server.cors.allowed_origins` to your real browser origin
-
-Start the service with:
-
-```bash
-NCH_CONFIG_PATH=/etc/netconfighub/config.yaml /opt/netconfighub/netconfighub
-```
-
-If you want a one-step install target, the repository also includes
-`deploy/netconfighub.service` for `systemd`.
+In production mode startup fails when secrets are weak, the initial admin
+password is missing, or CORS uses `*`.
 
 ## systemd Service
-
-`deploy/netconfighub.service` is designed for a dedicated service account and
-these paths:
-
-- binary: `/opt/netconfighub/netconfighub`
-- working directory: `/opt/netconfighub`
-- config file: `/etc/netconfighub/config.yaml`
 
 Install and enable it with:
 
 ```bash
-sudo useradd --system --home /opt/netconfighub --shell /usr/sbin/nologin nch || true
+sudo useradd --system --home /var/lib/netconfighub --shell /usr/sbin/nologin nch || true
 sudo install -d -o nch -g nch /opt/netconfighub /etc/netconfighub /var/lib/netconfighub
 sudo install -m 0755 netconfighub /opt/netconfighub/netconfighub
-sudo install -m 0644 configs/config.yaml /etc/netconfighub/config.yaml
+
+sudo tee /etc/netconfighub/netconfighub.env >/dev/null <<'EOF'
+NCH_ADMIN_USERNAME=admin
+NCH_ADMIN_PASSWORD=replace-with-a-strong-password
+NCH_JWT_SECRET=replace-with-at-least-32-random-characters
+NCH_ENCRYPTION_KEY=replace-with-at-least-32-random-characters
+NCH_CORS_ALLOWED_ORIGINS=https://nch.example.com
+EOF
+sudo chmod 0600 /etc/netconfighub/netconfighub.env
+
 sudo cp deploy/netconfighub.service /etc/systemd/system/netconfighub.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now netconfighub
 sudo systemctl status netconfighub
+journalctl -u netconfighub -f
 ```
 
 ## Docker
 
-```bash
-docker compose up --build
-```
-
-The Compose setup exposes the application on `localhost:8080` and stores runtime
-data under `./data`.
-
-To start the optional MySQL service:
+Create `.env`:
 
 ```bash
-docker compose --profile mysql up --build
+cat > .env <<'EOF'
+NCH_ADMIN_PASSWORD=replace-with-a-strong-password
+NCH_JWT_SECRET=replace-with-at-least-32-random-characters
+NCH_ENCRYPTION_KEY=replace-with-at-least-32-random-characters
+NCH_CORS_ALLOWED_ORIGINS=http://localhost:8080
+EOF
 ```
+
+Run the Docker Hub image:
+
+```bash
+docker run -d --name netconfighub \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -v netconfighub_data:/app/data \
+  --env-file .env \
+  -e NCH_ENV=production \
+  jincaiw/netconfighub:0.1.2
+```
+
+Or use Compose:
+
+```bash
+docker compose up -d
+docker compose ps
+```
+
+Docker Hub: <https://hub.docker.com/r/jincaiw/netconfighub>
 
 ## Configuration
 
@@ -182,10 +206,10 @@ bash test_api_v2.sh
 `web/dist` is intentionally committed because `web/embed.go` embeds it into the
 Go binary.
 
-Build a Linux binary from macOS or Linux:
+Build a versioned Linux release bundle:
 
 ```bash
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/netconfighub-linux-amd64 ./cmd/api
+make release-bundle VERSION=v0.1.2
 ```
 
 ## Release
@@ -193,7 +217,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dis
 Current release tag:
 
 ```text
-v0.1.1
+v0.1.2
 ```
 
 See `RELEASE_NOTES.md` for release contents and verification notes.

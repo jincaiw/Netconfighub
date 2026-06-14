@@ -135,7 +135,7 @@ test.describe('设备管理流程', () => {
 
   test('编辑设备功能', async ({ page }) => {
     const token = await getAuthToken()
-    const createRes = await fetch('http://localhost:8080/api/v1/devices', {
+    const createRes = await fetch('http://127.0.0.1:18080/api/v1/devices', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -172,7 +172,7 @@ test.describe('设备管理流程', () => {
     await page.getByRole('button', { name: '保存' }).click()
     await page.waitForTimeout(1000)
 
-    await fetch(`http://localhost:8080/api/v1/devices/${deviceId}`, {
+    await fetch(`http://127.0.0.1:18080/api/v1/devices/${deviceId}`, {
       method: 'DELETE',
       headers: { 'Authorization': `Bearer ${token}` },
     })

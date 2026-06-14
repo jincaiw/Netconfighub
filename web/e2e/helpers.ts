@@ -1,6 +1,6 @@
 import { Page, request } from '@playwright/test'
 
-const API_BASE = 'http://localhost:8080/api/v1'
+const API_BASE = 'http://127.0.0.1:18080/api/v1'
 
 let cachedToken: string | null = null
 let cachedPassword = ''
