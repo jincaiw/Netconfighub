@@ -1,6 +1,6 @@
 services:
   netconfighub:
-    image: jincaiw/netconfighub:0.1.2
+    image: qing1205/netconfighub:0.1.2
     build:
       context: .
       args:

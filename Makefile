@@ -19,8 +19,8 @@ release-bundle:
 
 docker-build:
 	docker build --build-arg VERSION=$(VERSION) \
-		-t jincaiw/netconfighub:$(VERSION:v%=%) \
-		-t jincaiw/netconfighub:latest .
+		-t qing1205/netconfighub:$(VERSION:v%=%) \
+		-t qing1205/netconfighub:latest .
 
 verify: test build-web
 	cd web && npx playwright test

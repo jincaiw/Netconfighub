@@ -14,6 +14,7 @@ Production hardening, UI refinement, and reproducible deployment release.
   deployments.
 - Isolated Playwright and API test ports from local development services.
 - Added a non-root, health-checked Docker image and hardened systemd unit.
+- Published amd64/arm64 images as `qing1205/netconfighub:0.1.2` and `latest`.
 - Added reproducible Linux amd64 release packaging and checksums.
 - Added bilingual deployment guides and three current application screenshots.
 

@@ -129,7 +129,7 @@ docker run -d --name netconfighub \
   -v netconfighub_data:/app/data \
   --env-file .env \
   -e NCH_ENV=production \
-  jincaiw/netconfighub:0.1.2
+  qing1205/netconfighub:0.1.2
 ```
 
 或者使用 Compose：
@@ -139,7 +139,7 @@ docker compose up -d
 docker compose ps
 ```
 
-Docker Hub：<https://hub.docker.com/r/jincaiw/netconfighub>
+Docker Hub：<https://hub.docker.com/r/qing1205/netconfighub>
 
 ## 配置
 
