@@ -17,7 +17,15 @@
         >
           {{ device?.enabled ? '禁用设备' : '启用设备' }}
         </t-button>
-        <t-button theme="primary" :loading="backupLoading" @click="handleBackup">触发备份</t-button>
+        <t-button
+          theme="primary"
+          :loading="backupLoading"
+          :disabled="isSftpPush"
+          :title="isSftpPush ? '该设备使用 SFTP 主动上传，平台不会拉取' : ''"
+          @click="handleBackup"
+        >
+          触发备份
+        </t-button>
       </t-space>
     </div>
 
@@ -27,6 +35,10 @@
           <t-descriptions-item label="设备名称">{{ device?.name }}</t-descriptions-item>
           <t-descriptions-item label="IP 地址">{{ device?.ip }}</t-descriptions-item>
           <t-descriptions-item label="厂商">{{ vendorLabel }}</t-descriptions-item>
+          <t-descriptions-item label="采集方式">
+            <t-tag v-if="isSftpPush" theme="primary" variant="light" size="small">SFTP 主动上传</t-tag>
+            <t-tag v-else variant="outline" size="small">平台拉取</t-tag>
+          </t-descriptions-item>
           <t-descriptions-item label="型号">{{ modelLabel }}</t-descriptions-item>
           <t-descriptions-item label="连接协议">{{ device?.protocol?.toUpperCase() }}</t-descriptions-item>
           <t-descriptions-item label="端口">{{ device?.port }}</t-descriptions-item>
@@ -116,6 +128,8 @@ v-for="(line, idx) in diffLines" :key="idx"
           </t-tab-panel>
         </t-tabs>
       </t-card>
+
+      <SftpPanel v-if="isSftpPush && !isInvalidId" :device-id="deviceId" />
     </t-loading>
   </div>
 </template>
@@ -130,6 +144,7 @@ import { triggerDeviceBackup } from '@/api/backup'
 import { getDeviceConfig, getDeviceVersions, getDeviceDeviations, getConfigDiff } from '@/api/config'
 import type { Device, ConfigVersion, Deviation, DiffResult } from '@/types'
 import BackupStatus from '@/components/BackupStatus.vue'
+import SftpPanel from '@/components/device/SftpPanel.vue'
 import { formatDateTime } from '@/utils/datetime'
 
 const router = useRouter()
@@ -148,6 +163,7 @@ const deviations = ref<Deviation[]>([])
 const activeTab = ref('latest')
 
 const deviceId = Number(route.params.id)
+const isSftpPush = computed(() => device.value?.collection_mode === 'sftp_push')
 const isInvalidId = Number.isNaN(deviceId) || deviceId <= 0
 const selectedFromHash = ref<string | null>(null)
 const selectedToHash = ref<string | null>(null)

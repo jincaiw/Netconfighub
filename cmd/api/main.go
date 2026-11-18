@@ -30,6 +30,7 @@ import (
 	"github.com/netconfighub/netconfighub/internal/sanitizer"
 	"github.com/netconfighub/netconfighub/internal/scheduler"
 	"github.com/netconfighub/netconfighub/internal/service"
+	"github.com/netconfighub/netconfighub/internal/sftpserver"
 	"github.com/netconfighub/netconfighub/web"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -87,6 +88,8 @@ func main() {
 	hookRepo := repository.NewHookRepository(db)
 	configRepo := repository.NewConfigRepository(db)
 	auditLogRepo := repository.NewAuditLogRepository(db)
+	sftpAccountRepo := repository.NewDeviceSFTPAccountRepository(db)
+	sftpUploadRepo := repository.NewSFTPUploadRepository(db)
 
 	gitStore, err := gitstore.NewStore(cfg.Git.RepoPath, cfg.Git.AuthorName, cfg.Git.AuthorEmail, cfg.Git.GPGSignKey, cfg.Git.GitCryptEnabled, cfg.Git.GitCryptKeyFile)
 	if err != nil {
@@ -106,6 +109,19 @@ func main() {
 	configService := service.NewConfigService(configRepo)
 	auditService := service.NewAuditService(auditLogRepo)
 
+	ingestService := service.NewConfigIngestService(service.IngestDeps{
+		DeviceRepo:     deviceRepo,
+		BackupTaskRepo: backupTaskRepo,
+		BaselineRepo:   baselineRepo,
+		DeviationRepo:  deviationRepo,
+		GitStore:       gitStore,
+		BaselineEngine: baselineEngine,
+		AlertService:   alertService,
+		Notifier:       ntf,
+		HookService:    hookService,
+		AuditService:   auditService,
+	})
+
 	sched := scheduler.NewScheduler(scheduler.SchedulerDeps{
 		Cfg:            &cfg.Scheduler,
 		DeviceRepo:     deviceRepo,
@@ -120,6 +136,7 @@ func main() {
 		EncryptionKey:  cfg.Server.EncryptionKey,
 		HookService:    hookService,
 		AuditService:   auditService,
+		Ingest:         ingestService,
 	})
 
 	adminService := service.NewAdminService(adminRepo)
@@ -131,6 +148,16 @@ func main() {
 	backupService.SetScheduler(sched)
 	baselineService := service.NewBaselineService(baselineRepo, deviceRepo, deviationRepo)
 	deviationService := service.NewDeviationService(deviationRepo)
+
+	sftpAccountService := service.NewSFTPAccountService(sftpAccountRepo, deviceRepo, auditService)
+	sftpUploadService := service.NewSFTPUploadService(service.SFTPUploadDeps{
+		UploadRepo:     sftpUploadRepo,
+		DeviceRepo:     deviceRepo,
+		BackupTaskRepo: backupTaskRepo,
+		Ingest:         ingestService,
+		Workers:        cfg.Sftp.ArchiveWorkers,
+		MaxRetries:     cfg.Sftp.MaxRetries,
+	})
 
 	initDefaultAdmin(authService)
 
@@ -154,27 +181,62 @@ func main() {
 	engine.Use(rateLimiter.Middleware())
 
 	loginRateLimiter := middleware.NewRateLimiter(300, time.Minute)
+
+	// The SFTP server is only created when configured; a failure here is fatal
+	// because a half-configured listener is worse than not starting.
+	// A broken SFTP configuration must not prevent the HTTP service from
+	// starting: log it and run without the listener.
+	sftpServer, sftpErr := sftpserver.New(cfg.Sftp,
+		sftpAuthAdapter{accounts: sftpAccountService},
+		sftpUploadAdapter{uploads: sftpUploadService},
+	)
+	if sftpErr != nil {
+		if cfg.Sftp.Enabled {
+			log.Printf("警告: SFTP 服务初始化失败，将不启动 SFTP 监听: %v", sftpErr)
+		}
+		sftpServer, _ = sftpserver.New(config.SftpConfig{Enabled: false},
+			sftpAuthAdapter{accounts: sftpAccountService},
+			sftpUploadAdapter{uploads: sftpUploadService},
+		)
+	}
+
 	router := handler.NewRouter(handler.RouterDeps{
-		AdminService:     adminService,
-		TokenService:     tokenService,
-		AuthService:      authService,
-		DeviceService:    deviceService,
-		GroupService:     groupService,
-		BackupService:    backupService,
-		BaselineService:  baselineService,
-		DeviationService: deviationService,
-		AlertService:     alertService,
-		HookService:      hookService,
-		ConfigService:    configService,
-		AuditService:     auditService,
-		TokenAuth:        middleware.APITokenAuth(tokenRepo),
-		JWTSecret:        cfg.Server.JWTSecret,
-		LoginRateLimiter: loginRateLimiter,
+		AdminService:       adminService,
+		TokenService:       tokenService,
+		AuthService:        authService,
+		DeviceService:      deviceService,
+		GroupService:       groupService,
+		BackupService:      backupService,
+		BaselineService:    baselineService,
+		DeviationService:   deviationService,
+		AlertService:       alertService,
+		HookService:        hookService,
+		ConfigService:      configService,
+		AuditService:       auditService,
+		SFTPAccountService: sftpAccountService,
+		SFTPUploadService:  sftpUploadService,
+		SFTPStatus:         sftpStatusAdapter{server: sftpServer, enabled: cfg.Sftp.Enabled},
+		TokenAuth:          middleware.APITokenAuth(tokenRepo),
+		JWTSecret:          cfg.Server.JWTSecret,
+		LoginRateLimiter:   loginRateLimiter,
 	})
 	router.Setup(engine)
 
 	gitStore.Start()
 	log.Println("Git 存储启动完成")
+
+	archiveCtx, archiveCancel := context.WithCancel(context.Background())
+	sftpUploadService.StartArchiveWorkers(archiveCtx)
+	if _, err := sftpUploadService.RecoverPending(archiveCtx); err != nil {
+		log.Printf("SFTP 待归档恢复扫描失败: %v", err)
+	}
+
+	if err := sftpServer.Start(); err != nil {
+		log.Printf("警告: SFTP 服务启动失败（请检查 %s 端口是否被占用）: %v", cfg.Sftp.Addr(), err)
+	}
+	if cfg.Sftp.Enabled {
+		log.Printf("SFTP 主机密钥指纹: %s", sftpServer.Fingerprint())
+	}
 
 	setupFrontend(engine)
 
@@ -202,6 +264,19 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	log.Println("正在关闭服务...")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := sftpServer.Stop(shutdownCtx); err != nil {
+		log.Printf("SFTP 服务停止异常: %v", err)
+	}
+	log.Println("SFTP 服务已停止")
+
+	archiveCancel()
+	if err := sftpUploadService.Stop(shutdownCtx); err != nil {
+		log.Printf("SFTP 归档 worker 停止异常: %v", err)
+	}
+	shutdownCancel()
+	log.Println("SFTP 归档 worker 已停止")
 
 	sched.Stop()
 	log.Println("调度器已停止")
@@ -452,6 +527,8 @@ func autoMigrate(db *gorm.DB) error {
 		&model.Hook{},
 		&model.SystemConfig{},
 		&model.AuditLog{},
+		&model.DeviceSFTPAccount{},
+		&model.SFTPUpload{},
 	); err != nil {
 		return err
 	}
@@ -497,4 +574,60 @@ func defaultAdminCredentials() (username, password string, generated bool) {
 		generated = true
 	}
 	return username, password, generated
+}
+
+// sftpAuthAdapter binds the SFTP server's credential callback to the device
+// account service. It only accepts accounts whose device is enabled and
+// configured for sftp_push collection.
+type sftpAuthAdapter struct {
+	accounts service.SFTPAccountService
+}
+
+func (a sftpAuthAdapter) VerifySFTPCredentials(ctx context.Context, username, password string) (*model.DeviceSFTPAccount, *model.Device, error) {
+	device, account, err := a.accounts.Authenticate(ctx, username, password)
+	if err != nil {
+		return nil, nil, err
+	}
+	return account, device, nil
+}
+
+// sftpUploadAdapter hands completed transfers to the upload service, which
+// records them as received and queues them for archiving.
+type sftpUploadAdapter struct {
+	uploads service.SFTPUploadService
+}
+
+func (a sftpUploadAdapter) OnReceived(ctx context.Context, upload sftpserver.ReceivedUpload) error {
+	_, err := a.uploads.RecordReceived(ctx, service.ReceivedFile{
+		DeviceID:       upload.DeviceID,
+		AccountID:      upload.AccountID,
+		StagingPath:    upload.StagingPath,
+		Bytes:          upload.Bytes,
+		Hash:           upload.Hash,
+		ClientFilename: upload.ClientFilename,
+		RemoteAddr:     upload.RemoteAddr,
+		ReceivedAt:     upload.ReceivedAt,
+	})
+	return err
+}
+
+// sftpStatusAdapter exposes the running server state to the management API.
+type sftpStatusAdapter struct {
+	server  *sftpserver.Server
+	enabled bool
+	maxConn int
+}
+
+func (a sftpStatusAdapter) SFTPStatus() handler.SFTPStatus {
+	if a.server == nil {
+		return handler.SFTPStatus{Enabled: a.enabled}
+	}
+	status := a.server.Status()
+	return handler.SFTPStatus{
+		Enabled:     a.enabled,
+		ListenAddr:  status.ListenAddr,
+		Fingerprint: status.Fingerprint,
+		ActiveConns: status.ActiveConns,
+		MaxConns:    status.MaxConns,
+	}
 }

@@ -29,3 +29,10 @@ web/.vite/
 *.log
 tmp/
 temp/
+
+# Local toolchain caches (sandbox-local; never commit)
+.gocache/
+.gomodcache/
+.gopath/
+.npmcache/
+.playwright/

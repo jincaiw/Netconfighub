@@ -10,16 +10,18 @@ import (
 // Sentinel errors. They are compared with errors.Is; their text is intentionally
 // not part of any HTTP response or user-facing message.
 var (
-	ErrConnectTimeout = errors.New("connect timeout")
-	ErrAuthFailed     = errors.New("authentication failed")
-	ErrPromptTimeout  = errors.New("prompt timeout")
-	ErrCommandTimeout = errors.New("command timeout")
-	ErrModelNotFound  = errors.New("device model not found")
-	ErrGitCommit      = errors.New("git commit failed")
-	ErrConfigEmpty    = errors.New("empty configuration")
-	ErrDeviceNotFound = errors.New("device not found")
-	ErrGroupNoDevices = errors.New("group has no devices")
-	ErrSchedulerDown  = errors.New("scheduler unavailable")
+	ErrConnectTimeout    = errors.New("connect timeout")
+	ErrAuthFailed        = errors.New("authentication failed")
+	ErrPromptTimeout     = errors.New("prompt timeout")
+	ErrCommandTimeout    = errors.New("command timeout")
+	ErrModelNotFound     = errors.New("device model not found")
+	ErrGitCommit         = errors.New("git commit failed")
+	ErrConfigEmpty       = errors.New("empty configuration")
+	ErrDeviceNotFound    = errors.New("device not found")
+	ErrGroupNoDevices    = errors.New("group has no devices")
+	ErrSchedulerDown     = errors.New("scheduler unavailable")
+	ErrDeviceNotPullable = errors.New("device is not pullable")
+	ErrUploadNotFound    = errors.New("sftp upload not found")
 )
 
 // Error is a typed error carrying a sentinel Kind and an original human-readable

@@ -17,11 +17,19 @@ const (
 	BackupStatusSkipped   BackupStatus = "skipped"
 )
 
+// Backup source values distinguish a configuration pulled by the platform from
+// one pushed by a device over SFTP.
+const (
+	BackupSourcePull     = "pull"
+	BackupSourceSFTPPush = "sftp_push"
+)
+
 type BackupTask struct {
 	ID            uint         `gorm:"primarykey" json:"id"`
 	DeviceID      uint         `gorm:"index;not null" json:"device_id"`
 	Device        Device       `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
 	Status        BackupStatus `gorm:"size:32;not null;default:pending" json:"status"`
+	Source        string       `gorm:"size:16;default:pull" json:"source"`
 	StartedAt     *time.Time   `json:"started_at"`
 	FinishedAt    *time.Time   `json:"finished_at"`
 	FailureReason string       `gorm:"size:512" json:"failure_reason"`

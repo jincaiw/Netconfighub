@@ -43,6 +43,7 @@ type Scheduler struct {
 	auditService   service.AuditService
 	notifier       notifier.Notifier
 	hookService    service.HookService
+	ingest         service.ConfigIngestService
 	workerPoolSize int
 	taskQueue      chan uint
 	stopCh         chan struct{}
@@ -71,6 +72,10 @@ type SchedulerDeps struct {
 	EncryptionKey  string
 	HookService    service.HookService
 	AuditService   service.AuditService
+	// Ingest is the shared configuration ingest pipeline. When nil the
+	// scheduler falls back to its legacy in-line write path (logged at startup)
+	// so the change can be rolled out in steps.
+	Ingest service.ConfigIngestService
 }
 
 func NewScheduler(deps SchedulerDeps) *Scheduler {
@@ -87,6 +92,11 @@ func NewScheduler(deps SchedulerDeps) *Scheduler {
 	if err != nil || taskTimeout == 0 {
 		taskTimeout = 5 * time.Minute
 	}
+	if deps.Ingest == nil {
+		// Rollout safety: without the shared ingest service the scheduler keeps
+		// its legacy in-line path. That path now propagates Git failures too.
+		log.Println("警告: 未注入 ConfigIngestService，调度器使用内置入库路径")
+	}
 
 	return &Scheduler{
 		cron:           cron.New(cron.WithSeconds()),
@@ -102,6 +112,7 @@ func NewScheduler(deps SchedulerDeps) *Scheduler {
 		auditService:   deps.AuditService,
 		notifier:       deps.Notifier,
 		hookService:    deps.HookService,
+		ingest:         deps.Ingest,
 		workerPoolSize: cfg.WorkerPoolSize,
 		taskQueue:      make(chan uint, cfg.WorkerPoolSize*2),
 		stopCh:         make(chan struct{}),
@@ -157,6 +168,14 @@ func (s *Scheduler) SubmitDevice(deviceID uint) error {
 		return fmt.Errorf("调度器已停止")
 	default:
 	}
+
+	// A device that pushes its own configuration over SFTP must never be
+	// pulled by the platform, even when a manual backup is requested.
+	if s.deviceRepo != nil {
+		if device, err := s.deviceRepo.FindByID(context.Background(), deviceID); err == nil && device != nil && !device.IsPullable() {
+			return apperr.Wrapf(apperr.ErrDeviceNotPullable, "设备 %s 使用 SFTP 上传模式，不支持平台主动拉取", device.Name)
+		}
+	}
 	select {
 	case <-s.stopCh:
 		return fmt.Errorf("调度器已停止")
@@ -179,7 +198,7 @@ func (s *Scheduler) SubmitGroup(groupID uint) error {
 		return fmt.Errorf("分组下没有设备")
 	}
 	for _, device := range devices {
-		if !device.Enabled {
+		if !device.Enabled || !device.IsPullable() {
 			continue
 		}
 		select {
@@ -301,11 +320,38 @@ func (s *Scheduler) executeBackup(ctx context.Context, deviceID uint) {
 }
 
 func (s *Scheduler) handleBackupSuccess(ctx context.Context, task *model.BackupTask, device *model.Device, configContent string) {
+	if s.ingest != nil {
+		result, err := s.ingest.Ingest(ctx, service.IngestRequest{
+			Device:  device,
+			Content: configContent,
+			Source:  service.IngestSourcePull,
+			TaskID:  task.ID,
+		})
+		if err != nil {
+			// A failed Git write (or a failed state update) must never be reported
+			// as a successful backup: route it through the failure path.
+			log.Printf("配置入库失败 [device=%s]: %v", device.Name, err)
+			s.handleBackupFailure(ctx, task, device, err)
+			return
+		}
+		log.Printf("备份成功 [device=%s, configHash=%s, changed=%t]", device.Name, result.ConfigHash, result.Changed)
+		return
+	}
+
+	s.handleBackupSuccessLegacy(ctx, task, device, configContent)
+}
+
+// handleBackupSuccessLegacy keeps the pre-ingest behaviour for callers that did
+// not inject a ConfigIngestService. It is only reachable when SchedulerDeps.Ingest
+// is nil; the Git write failure is now propagated instead of only logged.
+func (s *Scheduler) handleBackupSuccessLegacy(ctx context.Context, task *model.BackupTask, device *model.Device, configContent string) {
 	now := time.Now()
 
 	if s.gitStore != nil {
-		if _, err := s.gitStore.WriteConfigAsync(string(device.Vendor), device.Name, configContent); err != nil {
+		if _, err := s.gitStore.WriteConfig(string(device.Vendor), device.Name, configContent); err != nil {
 			log.Printf("写入 Git 存储失败 [device=%s]: %v", device.Name, err)
+			s.handleBackupFailure(ctx, task, device, fmt.Errorf("写入 Git 存储失败: %w", err))
+			return
 		}
 	}
 
@@ -377,13 +423,14 @@ func (s *Scheduler) handleBackupSuccess(ctx context.Context, task *model.BackupT
 		log.Printf("更新备份任务失败 [taskID=%d]: %v", task.ID, err)
 	}
 
-	device.LastBackupStatus = string(model.BackupStatusSuccess)
-	device.LastBackupAt = &now
-	device.LastFailureReason = ""
-	device.RetryCount = 0
-	device.Group = nil
-	s.encryptDeviceCredentials(device)
-	if err := s.deviceRepo.Update(ctx, device); err != nil {
+	// Partial update by ID: the in-memory device holds decrypted credentials, so
+	// writing the whole row would persist plaintext or double-encrypt them.
+	if err := s.deviceRepo.UpdateBackupState(ctx, device.ID, repository.BackupStateUpdate{
+		Status:        string(model.BackupStatusSuccess),
+		At:            &now,
+		FailureReason: "",
+		RetryCount:    0,
+	}); err != nil {
 		log.Printf("更新设备状态失败 [deviceID=%d]: %v", device.ID, err)
 	}
 
@@ -423,13 +470,14 @@ func (s *Scheduler) handleBackupFailure(ctx context.Context, task *model.BackupT
 		log.Printf("更新备份任务失败 [taskID=%d]: %v", task.ID, err)
 	}
 
-	device.LastBackupStatus = string(task.Status)
-	device.LastBackupAt = &now
-	device.LastFailureReason = backupErr.Error()
-	device.RetryCount = task.RetryCount
-	device.Group = nil
-	s.encryptDeviceCredentials(device)
-	if err := s.deviceRepo.Update(ctx, device); err != nil {
+	// Partial update by ID instead of Save(device) + encryptDeviceCredentials:
+	// the in-memory device holds decrypted credentials.
+	if err := s.deviceRepo.UpdateBackupState(ctx, device.ID, repository.BackupStateUpdate{
+		Status:        string(task.Status),
+		At:            &now,
+		FailureReason: backupErr.Error(),
+		RetryCount:    task.RetryCount,
+	}); err != nil {
 		log.Printf("更新设备状态失败 [deviceID=%d]: %v", device.ID, err)
 	}
 
@@ -481,10 +529,13 @@ func (s *Scheduler) handleTimeout(ctx context.Context, task *model.BackupTask, d
 		log.Printf("更新超时任务失败 [taskID=%d]: %v", task.ID, err)
 	}
 
-	device.LastBackupStatus = string(model.BackupStatusTimeout)
-	device.Group = nil
-	s.encryptDeviceCredentials(device)
-	if err := s.deviceRepo.Update(ctx, device); err != nil {
+	now := time.Now()
+	if err := s.deviceRepo.UpdateBackupState(ctx, device.ID, repository.BackupStateUpdate{
+		Status:        string(model.BackupStatusTimeout),
+		At:            &now,
+		FailureReason: fmt.Sprintf("采集超时，已超过 %v", s.taskTimeout),
+		RetryCount:    task.RetryCount,
+	}); err != nil {
 		log.Printf("更新设备状态失败 [deviceID=%d]: %v", device.ID, err)
 	}
 
@@ -563,6 +614,14 @@ func (s *Scheduler) processRetryingTasks(ctx context.Context) {
 				continue
 			}
 			for _, task := range tasks {
+				// Re-check the device: a task created before the device switched
+				// to sftp_push must not be retried by the pull pipeline.
+				if s.deviceRepo != nil {
+					device, err := s.deviceRepo.FindByID(ctx, task.DeviceID)
+					if err != nil || device == nil || !device.IsPullable() {
+						continue
+					}
+				}
 				select {
 				case <-s.stopCh:
 					return
@@ -603,7 +662,7 @@ func (s *Scheduler) scheduleAllDevices(ctx context.Context) {
 	}
 	now := time.Now()
 	for _, device := range devices {
-		if !device.Enabled {
+		if !device.Enabled || !device.IsPullable() {
 			continue
 		}
 		interval := s.cfg.DefaultInterval
@@ -661,27 +720,6 @@ func (s *Scheduler) decryptDeviceCredentials(device *model.Device) {
 			log.Printf("解密设备Enable密码失败 [deviceID=%d]: %v", device.ID, err)
 		} else {
 			device.EnablePassword = decrypted
-		}
-	}
-}
-
-func (s *Scheduler) encryptDeviceCredentials(device *model.Device) {
-	if device.Password != "" {
-		enc, err := crypto.Encrypt(device.Password, s.encryptionKey)
-		if err == nil {
-			device.Password = enc
-		}
-	}
-	if device.SSHKey != "" {
-		enc, err := crypto.Encrypt(device.SSHKey, s.encryptionKey)
-		if err == nil {
-			device.SSHKey = enc
-		}
-	}
-	if device.EnablePassword != "" {
-		enc, err := crypto.Encrypt(device.EnablePassword, s.encryptionKey)
-		if err == nil {
-			device.EnablePassword = enc
 		}
 	}
 }

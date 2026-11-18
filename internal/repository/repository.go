@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/netconfighub/netconfighub/internal/model"
 )
@@ -25,6 +26,17 @@ type DeviceRepository interface {
 	Delete(ctx context.Context, id uint) error
 	FindByGroupID(ctx context.Context, groupID uint) ([]model.Device, error)
 	ListFailed(ctx context.Context, offset, limit int) ([]model.Device, int64, error)
+	UpdateBackupState(ctx context.Context, id uint, state BackupStateUpdate) error
+}
+
+// BackupStateUpdate carries the four backup-related device columns that the
+// scheduler updates after a collection attempt. It exists so those updates can
+// be applied by ID without rewriting (and re-encrypting) the whole device row.
+type BackupStateUpdate struct {
+	Status        string
+	At            *time.Time
+	FailureReason string
+	RetryCount    int
 }
 
 type GroupRepository interface {
@@ -76,4 +88,29 @@ type DeviationRepository interface {
 type AuditLogRepository interface {
 	Create(ctx context.Context, log *model.AuditLog) error
 	List(ctx context.Context, offset, limit int) ([]model.AuditLog, int64, error)
+}
+
+// DeviceSFTPAccountRepository persists the per-device credentials used by the
+// inbound SFTP server. Only bcrypt hashes are ever stored.
+type DeviceSFTPAccountRepository interface {
+	Create(ctx context.Context, account *model.DeviceSFTPAccount) error
+	FindByUsername(ctx context.Context, username string) (*model.DeviceSFTPAccount, error)
+	FindByDeviceID(ctx context.Context, deviceID uint) (*model.DeviceSFTPAccount, error)
+	Update(ctx context.Context, account *model.DeviceSFTPAccount) error
+	Revoke(ctx context.Context, deviceID uint) error
+	ListByDeviceID(ctx context.Context, deviceID uint) ([]model.DeviceSFTPAccount, error)
+}
+
+// SFTPUploadRepository persists inbound upload records and their two-stage
+// reception/archiving state.
+type SFTPUploadRepository interface {
+	Create(ctx context.Context, upload *model.SFTPUpload) error
+	FindByID(ctx context.Context, id uint) (*model.SFTPUpload, error)
+	ListByDevice(ctx context.Context, deviceID uint, offset, limit int) ([]model.SFTPUpload, int64, error)
+	ListByStage(ctx context.Context, stages []string, limit int) ([]model.SFTPUpload, error)
+	// UpdateStage applies the given column updates only when the row is still in
+	// one of fromStages, returning the number of affected rows so callers can
+	// detect a concurrent archiver.
+	UpdateStage(ctx context.Context, id uint, fromStages []string, updates map[string]interface{}) (int64, error)
+	IncrementRetry(ctx context.Context, id uint) error
 }

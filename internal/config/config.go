@@ -21,6 +21,7 @@ type Config struct {
 	Database  DatabaseConfig           `yaml:"database"`
 	Git       GitConfig                `yaml:"git"`
 	Scheduler SchedulerConfig          `yaml:"scheduler"`
+	Sftp      SftpConfig               `yaml:"sftp"`
 	Log       LogConfig                `yaml:"log"`
 	Sanitize  sanitizer.SanitizeConfig `yaml:"sanitize"`
 	Notify    notifier.NotifyConfig    `yaml:"notify"`
@@ -79,6 +80,29 @@ type SchedulerConfig struct {
 type LogConfig struct {
 	Level  string `yaml:"level"`
 	Format string `yaml:"format"`
+}
+
+// SftpConfig configures the inbound SFTP server that lets devices push their
+// configuration. It is disabled by default so existing pull-based deployments
+// keep starting with no new listener.
+type SftpConfig struct {
+	Enabled          bool   `yaml:"enabled"`
+	Host             string `yaml:"host"`
+	Port             int    `yaml:"port"`
+	HostKeyPath      string `yaml:"host_key_path"`
+	StagingDir       string `yaml:"staging_dir"`
+	MaxFileSizeBytes int64  `yaml:"max_file_size_bytes"`
+	MaxConnections   int    `yaml:"max_connections"`
+	IdleTimeout      string `yaml:"idle_timeout"`
+	SessionTimeout   string `yaml:"session_timeout"`
+	ArchiveWorkers   int    `yaml:"archive_workers"`
+	MaxRetries       int    `yaml:"max_retries"`
+	RetryDelay       string `yaml:"retry_delay"`
+}
+
+// Addr returns the host:port the SFTP server listens on.
+func (s *SftpConfig) Addr() string {
+	return fmt.Sprintf("%s:%d", s.Host, s.Port)
 }
 
 func LoadConfig(path string, allowMissing bool) (*Config, error) {
@@ -208,6 +232,47 @@ func applyDefaults(cfg *Config) {
 	if cfg.Git.AuthorEmail == "" {
 		cfg.Git.AuthorEmail = "netconfighub@local"
 	}
+	applySftpDefaults(cfg)
+}
+
+// applySftpDefaults fills the SFTP server defaults. Paths are derived from the
+// configured data directory (the directory holding the SQLite database) so the
+// host key and staging files travel with NCH_DATA_DIR.
+func applySftpDefaults(cfg *Config) {
+	dataDir := filepath.Dir(cfg.Database.SQLitePath)
+	if cfg.Sftp.Host == "" {
+		cfg.Sftp.Host = "0.0.0.0"
+	}
+	if cfg.Sftp.Port == 0 {
+		cfg.Sftp.Port = 2022
+	}
+	if cfg.Sftp.HostKeyPath == "" {
+		cfg.Sftp.HostKeyPath = filepath.Join(dataDir, "sftp", "host_key")
+	}
+	if cfg.Sftp.StagingDir == "" {
+		cfg.Sftp.StagingDir = filepath.Join(dataDir, "sftp")
+	}
+	if cfg.Sftp.MaxFileSizeBytes == 0 {
+		cfg.Sftp.MaxFileSizeBytes = 10 << 20
+	}
+	if cfg.Sftp.MaxConnections == 0 {
+		cfg.Sftp.MaxConnections = 16
+	}
+	if cfg.Sftp.IdleTimeout == "" {
+		cfg.Sftp.IdleTimeout = "60s"
+	}
+	if cfg.Sftp.SessionTimeout == "" {
+		cfg.Sftp.SessionTimeout = "10m"
+	}
+	if cfg.Sftp.ArchiveWorkers == 0 {
+		cfg.Sftp.ArchiveWorkers = 2
+	}
+	if cfg.Sftp.MaxRetries == 0 {
+		cfg.Sftp.MaxRetries = 3
+	}
+	if cfg.Sftp.RetryDelay == "" {
+		cfg.Sftp.RetryDelay = "30s"
+	}
 }
 
 func applyEnvironment(cfg *Config) error {
@@ -231,11 +296,52 @@ func applyEnvironment(cfg *Config) error {
 		cfg.Server.Port = port
 	}
 	if dataDir := strings.TrimSpace(os.Getenv("NCH_DATA_DIR")); dataDir != "" {
+		previousDataDir := filepath.Dir(cfg.Database.SQLitePath)
 		cfg.Database.SQLitePath = filepath.Join(dataDir, "netconfighub.db")
 		cfg.Git.RepoPath = filepath.Join(dataDir, "configs")
+		// Re-derive the SFTP paths that were still at their data-dir default so
+		// they follow NCH_DATA_DIR; an explicitly configured path is preserved.
+		if cfg.Sftp.HostKeyPath == filepath.Join(previousDataDir, "sftp", "host_key") {
+			cfg.Sftp.HostKeyPath = filepath.Join(dataDir, "sftp", "host_key")
+		}
+		if cfg.Sftp.StagingDir == filepath.Join(previousDataDir, "sftp") {
+			cfg.Sftp.StagingDir = filepath.Join(dataDir, "sftp")
+		}
 	}
 	if origins := strings.TrimSpace(os.Getenv("NCH_CORS_ALLOWED_ORIGINS")); origins != "" {
 		cfg.Server.CORS.AllowedOrigins = splitCSV(origins)
+	}
+
+	if value := strings.TrimSpace(os.Getenv("NCH_SFTP_ENABLED")); value != "" {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("NCH_SFTP_ENABLED 必须是布尔值")
+		}
+		cfg.Sftp.Enabled = enabled
+	}
+	setString("NCH_SFTP_HOST", &cfg.Sftp.Host)
+	setString("NCH_SFTP_HOST_KEY_PATH", &cfg.Sftp.HostKeyPath)
+	setString("NCH_SFTP_STAGING_DIR", &cfg.Sftp.StagingDir)
+	if value := strings.TrimSpace(os.Getenv("NCH_SFTP_PORT")); value != "" {
+		port, err := strconv.Atoi(value)
+		if err != nil || port < 1 || port > 65535 {
+			return fmt.Errorf("NCH_SFTP_PORT 必须是 1-65535 的整数")
+		}
+		cfg.Sftp.Port = port
+	}
+	if value := strings.TrimSpace(os.Getenv("NCH_SFTP_MAX_FILE_SIZE")); value != "" {
+		maxFileSize, err := strconv.ParseInt(value, 10, 64)
+		if err != nil || maxFileSize <= 0 {
+			return fmt.Errorf("NCH_SFTP_MAX_FILE_SIZE 必须是正整数")
+		}
+		cfg.Sftp.MaxFileSizeBytes = maxFileSize
+	}
+	if value := strings.TrimSpace(os.Getenv("NCH_SFTP_MAX_CONNECTIONS")); value != "" {
+		maxConnections, err := strconv.Atoi(value)
+		if err != nil || maxConnections <= 0 {
+			return fmt.Errorf("NCH_SFTP_MAX_CONNECTIONS 必须是正整数")
+		}
+		cfg.Sftp.MaxConnections = maxConnections
 	}
 
 	return nil
@@ -288,10 +394,33 @@ func ValidateProduction(cfg *Config) error {
 			break
 		}
 	}
+	problems = append(problems, validateSftpProduction(cfg)...)
 	if len(problems) > 0 {
 		return fmt.Errorf("生产配置无效: %s", strings.Join(problems, "; "))
 	}
 	return nil
+}
+
+// validateSftpProduction only checks the SFTP settings when the listener is
+// enabled, so a disabled (default) deployment keeps validating as before.
+func validateSftpProduction(cfg *Config) []string {
+	if !cfg.Sftp.Enabled {
+		return nil
+	}
+	var problems []string
+	if cfg.Sftp.Port < 1 || cfg.Sftp.Port > 65535 {
+		problems = append(problems, "NCH_SFTP_PORT 必须是 1-65535 的整数")
+	}
+	if cfg.Sftp.Port == cfg.Server.Port {
+		problems = append(problems, "sftp.port 不得与 server.port 相同")
+	}
+	if strings.TrimSpace(cfg.Sftp.HostKeyPath) == "" {
+		problems = append(problems, "sftp.host_key_path 不得为空")
+	}
+	if strings.TrimSpace(cfg.Sftp.StagingDir) == "" {
+		problems = append(problems, "sftp.staging_dir 不得为空")
+	}
+	return problems
 }
 
 func (s *ServerConfig) Addr() string {

@@ -54,6 +54,12 @@
             placeholder="请选择协议"
           />
         </t-form-item>
+        <t-form-item label="采集方式" name="collection_mode">
+          <t-select v-model="newDevice.collection_mode" :options="collectionModeOptions" />
+          <div v-if="newDevice.collection_mode === 'sftp_push'" class="collection-hint">
+            该设备不会被平台拉取，需在设备详情中创建 SFTP 上传账号后由设备主动上传配置。
+          </div>
+        </t-form-item>
         <t-form-item label="端口" name="port">
           <t-input-number v-model="newDevice.port" :min="1" :max="65535" style="width: 100%" />
         </t-form-item>
@@ -112,6 +118,12 @@
             :options="protocolOptions"
             placeholder="请选择协议"
           />
+        </t-form-item>
+        <t-form-item label="采集方式" name="collection_mode">
+          <t-select v-model="editingDevice.collection_mode" :options="collectionModeOptions" />
+          <div v-if="editingDevice.collection_mode === 'sftp_push'" class="collection-hint">
+            该设备不会被平台拉取，需由设备通过 SFTP 主动上传配置。
+          </div>
         </t-form-item>
         <t-form-item label="端口" name="port">
           <t-input-number v-model="editingDevice.port" :min="1" :max="65535" style="width: 100%" />
@@ -222,6 +234,12 @@ const protocolOptions = [
   { label: 'Telnet', value: 'telnet' },
 ]
 
+// 采集方式决定配置如何进入平台：平台拉取，或设备通过 SFTP 主动上传。
+const collectionModeOptions = [
+  { label: '平台拉取（SSH/Telnet）', value: 'pull' },
+  { label: 'SFTP 主动上传', value: 'sftp_push' },
+]
+
 const groupOptions = ref<Array<{ label: string; value: number }>>([])
 
 const vendorModelMap: Record<string, DeviceCreateRequest['model']> = {
@@ -244,6 +262,7 @@ const newDevice = reactive<DeviceCreateRequest>({
   enable_password: '',
   backup_interval: '',
   group_id: undefined,
+  collection_mode: 'pull',
 })
 
 const editingDevice = reactive<DeviceCreateRequest & { id: number }>({
@@ -260,6 +279,7 @@ const editingDevice = reactive<DeviceCreateRequest & { id: number }>({
   enable_password: '',
   backup_interval: '',
   group_id: undefined,
+  collection_mode: 'pull',
 })
 
 const createRules: FormRules = {
@@ -393,6 +413,7 @@ function handleEdit(device: Device) {
   editingDevice.enable_password = ''
   editingDevice.backup_interval = device.backup_interval || ''
   editingDevice.group_id = device.group_id
+  editingDevice.collection_mode = device.collection_mode || 'pull'
   showEditModal.value = true
 }
 
@@ -412,6 +433,7 @@ async function handleUpdate() {
       username: editingDevice.username,
       backup_interval: editingDevice.backup_interval || undefined,
       group_id: editingDevice.group_id,
+      collection_mode: editingDevice.collection_mode,
     }
     if (editingDevice.password) {
       data.password = editingDevice.password
@@ -525,6 +547,13 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.collection-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--td-text-color-secondary, #888);
+}
+
 .device-list {
   width: 100%;
 }

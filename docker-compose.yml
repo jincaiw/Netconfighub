@@ -7,6 +7,8 @@ services:
         VERSION: v0.1.2
     ports:
       - "8080:8080"
+      # SFTP 接收端口：仅当 NCH_SFTP_ENABLED=true 时监听
+      - "2022:2022"
     volumes:
       - netconfighub_data:/app/data
     environment:
@@ -17,6 +19,8 @@ services:
       NCH_JWT_SECRET: ${NCH_JWT_SECRET:?set NCH_JWT_SECRET}
       NCH_ENCRYPTION_KEY: ${NCH_ENCRYPTION_KEY:?set NCH_ENCRYPTION_KEY}
       NCH_CORS_ALLOWED_ORIGINS: ${NCH_CORS_ALLOWED_ORIGINS:-http://localhost:8080}
+      NCH_SFTP_ENABLED: ${NCH_SFTP_ENABLED:-false}
+      NCH_SFTP_PORT: ${NCH_SFTP_PORT:-2022}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/api/v1/health"]

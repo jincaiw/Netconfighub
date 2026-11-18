@@ -32,13 +32,13 @@ func (Baseline) TableName() string {
 
 // Deviation 偏差模型
 type Deviation struct {
-	ID           uint      `gorm:"primarykey" json:"id"`
-	BackupTaskID uint      `gorm:"index;not null" json:"backup_task_id"`
+	ID           uint       `gorm:"primarykey" json:"id"`
+	BackupTaskID uint       `gorm:"index;not null" json:"backup_task_id"`
 	BackupTask   BackupTask `gorm:"foreignKey:BackupTaskID" json:"backup_task,omitempty"`
-	BaselineID   uint      `gorm:"index;not null" json:"baseline_id"`
-	Baseline     Baseline  `gorm:"foreignKey:BaselineID" json:"baseline,omitempty"`
-	DiffContent  string    `gorm:"type:text;not null" json:"diff_content"`
-	DetectedAt   time.Time `json:"detected_at"`
+	BaselineID   uint       `gorm:"index;not null" json:"baseline_id"`
+	Baseline     Baseline   `gorm:"foreignKey:BaselineID" json:"baseline,omitempty"`
+	DiffContent  string     `gorm:"type:text;not null" json:"diff_content"`
+	DetectedAt   time.Time  `json:"detected_at"`
 }
 
 // TableName 指定表名

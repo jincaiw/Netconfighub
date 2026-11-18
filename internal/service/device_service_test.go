@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/netconfighub/netconfighub/internal/crypto"
 	"github.com/netconfighub/netconfighub/internal/model"
+	"github.com/netconfighub/netconfighub/internal/repository"
 )
 
 type countingGroupRepo struct {
@@ -64,6 +66,9 @@ func (r *recordingDeviceRepo) FindByGroupID(ctx context.Context, groupID uint) (
 func (r *recordingDeviceRepo) ListFailed(ctx context.Context, offset, limit int) ([]model.Device, int64, error) {
 	return nil, 0, nil
 }
+func (r *recordingDeviceRepo) UpdateBackupState(ctx context.Context, id uint, state repository.BackupStateUpdate) error {
+	return nil
+}
 
 func TestImportDevicesLoadsGroupsOnce(t *testing.T) {
 	groups := &countingGroupRepo{groups: []model.Group{{ID: 7, Name: "core"}}}
@@ -97,4 +102,85 @@ func TestImportDevicesLoadsGroupsOnce(t *testing.T) {
 	if devices.unboundedListCall {
 		t.Fatal("unexpected unbounded device List call during import")
 	}
+}
+
+// TestUpdateDevicePreservesMaskedCredentials guards the regression where the
+// API mask ("******") was encrypted and stored on edit, destroying the real
+// device password.
+func TestUpdateDevicePreservesMaskedCredentials(t *testing.T) {
+	const key = "test-encryption-key-32bytes!!"
+
+	encrypted, err := crypto.Encrypt("real-device-password", key)
+	if err != nil {
+		t.Fatalf("加密失败: %v", err)
+	}
+
+	existing := &model.Device{
+		ID: 1, Name: "sw1", IP: "192.0.2.10", Vendor: model.VendorCisco,
+		Model: model.DeviceModelIOS, Protocol: model.ConnProtocolSSH,
+		Port: 22, Username: "admin", Password: encrypted,
+		Enabled: true, CollectionMode: model.CollectionModePull,
+	}
+	repo := &maskingDeviceRepo{device: existing}
+	svc := NewDeviceService(repo, &countingGroupRepo{}, nil, nil, nil, nil, nil, key)
+
+	// The client sends the masked placeholder back, as the UI does on edit.
+	update := &model.Device{
+		Name: "sw1-renamed", IP: "192.0.2.10", Vendor: model.VendorCisco,
+		Model: model.DeviceModelIOS, Protocol: model.ConnProtocolSSH,
+		Port: 22, Username: "admin", Password: "******",
+		Enabled: true, CollectionMode: model.CollectionModePull,
+	}
+	if _, err := svc.Update(context.Background(), 1, update); err != nil {
+		t.Fatalf("更新设备失败: %v", err)
+	}
+
+	if repo.device.Password != encrypted {
+		t.Fatalf("掩码占位符不得覆盖真实凭据")
+	}
+	plaintext, err := crypto.Decrypt(repo.device.Password, key)
+	if err != nil {
+		t.Fatalf("解密失败: %v", err)
+	}
+	if plaintext != "real-device-password" {
+		t.Fatalf("凭据被破坏: %q", plaintext)
+	}
+	if repo.device.Name != "sw1-renamed" {
+		t.Fatalf("其他字段应正常更新")
+	}
+}
+
+// maskingDeviceRepo resolves a single device by ID for the mask test.
+type maskingDeviceRepo struct {
+	recordingDeviceRepo
+	device *model.Device
+}
+
+func (r *maskingDeviceRepo) FindByID(_ context.Context, id uint) (*model.Device, error) {
+	if r.device != nil && r.device.ID == id {
+		clone := *r.device
+		return &clone, nil
+	}
+	return nil, fmt.Errorf("not found")
+}
+
+func (r *maskingDeviceRepo) Update(_ context.Context, device *model.Device) error {
+	r.device = device
+	return nil
+}
+
+func (r *maskingDeviceRepo) FindByName(_ context.Context, name string) (*model.Device, error) {
+	if r.device != nil && r.device.Name == name {
+		clone := *r.device
+		return &clone, nil
+	}
+	return nil, fmt.Errorf("not found")
+}
+
+func (r *maskingDeviceRepo) FindByIP(_ context.Context, ip string) (*model.Device, error) {
+	if r.device != nil && r.device.IP == ip {
+		clone := *r.device
+		return &clone, nil
+	}
+	return nil, fmt.Errorf("not found")
 }

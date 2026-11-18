@@ -54,6 +54,27 @@ scheduler:
   retry_delay: "30s"
   task_timeout: "5m"
 
+# SFTP 设备主动上传（默认关闭）。开启后平台在独立端口监听，设备用专属账号
+# 上传配置文件；未开启时完全不影响现有拉取流程。
+# 也可用环境变量覆盖：NCH_SFTP_ENABLED / NCH_SFTP_HOST / NCH_SFTP_PORT /
+# NCH_SFTP_HOST_KEY_PATH / NCH_SFTP_STAGING_DIR / NCH_SFTP_MAX_FILE_SIZE /
+# NCH_SFTP_MAX_CONNECTIONS
+sftp:
+  enabled: false
+  host: "0.0.0.0"
+  port: 2022
+  # 留空则由数据目录推导：<data_dir>/sftp/host_key
+  host_key_path: ""
+  # 留空则由数据目录推导：<data_dir>/sftp
+  staging_dir: ""
+  max_file_size_bytes: 10485760 # 10 MiB
+  max_connections: 16
+  idle_timeout: "60s"
+  session_timeout: "10m"
+  archive_workers: 2
+  max_retries: 3
+  retry_delay: "30s"
+
 log:
   level: "info"
   format: "json"

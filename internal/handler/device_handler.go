@@ -28,6 +28,7 @@ type createDeviceRequest struct {
 	BackupInterval string `json:"backup_interval"`
 	GroupID        *uint  `json:"group_id"`
 	Enabled        *bool  `json:"enabled"`
+	CollectionMode string `json:"collection_mode"`
 }
 
 type updateDeviceRequest struct {
@@ -42,6 +43,7 @@ type updateDeviceRequest struct {
 	SSHKey         *string `json:"ssh_key"`
 	EnablePassword *string `json:"enable_password"`
 	BackupInterval *string `json:"backup_interval"`
+	CollectionMode *string `json:"collection_mode"`
 	GroupID        *uint   `json:"group_id"`
 	Enabled        *bool   `json:"enabled"`
 }
@@ -132,6 +134,7 @@ func (r *Router) createDevice(c *gin.Context) {
 		BackupInterval: req.BackupInterval,
 		GroupID:        req.GroupID,
 		Enabled:        enabled,
+		CollectionMode: model.CollectionMode(req.CollectionMode),
 	}
 
 	result, err := r.deviceService.Create(c.Request.Context(), device)
@@ -235,6 +238,9 @@ func (r *Router) updateDevice(c *gin.Context) {
 	if req.Enabled != nil {
 		device.Enabled = *req.Enabled
 	}
+	if req.CollectionMode != nil {
+		device.CollectionMode = model.CollectionMode(*req.CollectionMode)
+	}
 
 	result, err := r.deviceService.Update(c.Request.Context(), uint(id), device)
 	if err != nil {
@@ -320,14 +326,26 @@ func (r *Router) triggerBackup(c *gin.Context) {
 		return
 	}
 
-	if _, err := r.deviceService.GetByID(c.Request.Context(), uint(id)); err != nil {
+	device, err := r.deviceService.GetByID(c.Request.Context(), uint(id))
+	if err != nil {
 		Error(c, http.StatusNotFound, 404, "设备不存在")
+		return
+	}
+	// Checked here as well as in the scheduler so the API contract holds
+	// regardless of which scheduler implementation is wired in.
+	if !device.IsPullable() {
+		Error(c, http.StatusConflict, 409, "该设备使用 SFTP 上传模式，不支持平台主动拉取")
 		return
 	}
 
 	if err := r.backupService.TriggerBackupFromAPI(c.Request.Context(), uint(id)); err != nil {
 		if errors.Is(err, apperr.ErrSchedulerDown) {
 			Error(c, http.StatusInternalServerError, 500, "调度器未初始化")
+			return
+		}
+		// A device that pushes over SFTP cannot be pulled by the platform.
+		if errors.Is(err, apperr.ErrDeviceNotPullable) {
+			Error(c, http.StatusConflict, 409, "该设备使用 SFTP 上传模式，不支持平台主动拉取")
 			return
 		}
 		BadRequest(c, "提交备份任务失败")

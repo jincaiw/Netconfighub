@@ -89,3 +89,37 @@ type AuditService interface {
 	Log(ctx context.Context, userID uint, username, action, targetType string, targetID uint, detail, clientIP string) error
 	List(ctx context.Context, offset, limit int) ([]model.AuditLog, int64, error)
 }
+
+// IngestSourcePull and IngestSourceSFTPPush identify which path delivered a
+// configuration into the shared ingest pipeline.
+const (
+	IngestSourcePull     = "pull"
+	IngestSourceSFTPPush = "sftp_push"
+)
+
+// IngestRequest describes one configuration to persist through the shared
+// ingest pipeline used by both the pull scheduler and the SFTP archive workers.
+type IngestRequest struct {
+	Device   *model.Device
+	Content  string
+	Source   string
+	TaskID   uint
+	UploadID *uint
+}
+
+// IngestResult reports what the ingest pipeline did with the configuration.
+type IngestResult struct {
+	// ConfigHash is the SHA256 of the configuration content (not the Git commit
+	// hash), so identical content always yields the same value.
+	ConfigHash string
+	// Changed is false when the content matches the latest Git version, i.e. no
+	// new commit was produced.
+	Changed bool
+}
+
+// ConfigIngestService is the single entry point for persisting a collected or
+// uploaded configuration. Implementations must write to the Git store
+// synchronously and propagate any write failure to the caller.
+type ConfigIngestService interface {
+	Ingest(ctx context.Context, req IngestRequest) (*IngestResult, error)
+}

@@ -114,3 +114,19 @@ func (r *deviceRepoImpl) ListFailed(ctx context.Context, offset, limit int) ([]m
 
 	return devices, total, nil
 }
+
+// UpdateBackupState updates only the backup-related columns of one device.
+// It deliberately avoids Save/Update on the whole row: the scheduler's copy of
+// the device holds decrypted credentials, so writing the whole row would either
+// re-encrypt already-encrypted values or persist plaintext.
+func (r *deviceRepoImpl) UpdateBackupState(ctx context.Context, id uint, state BackupStateUpdate) error {
+	updates := map[string]interface{}{
+		"last_backup_status":  state.Status,
+		"last_failure_reason": state.FailureReason,
+		"retry_count":         state.RetryCount,
+	}
+	if state.At != nil {
+		updates["last_backup_at"] = *state.At
+	}
+	return r.db.WithContext(ctx).Model(&model.Device{}).Where("id = ?", id).Updates(updates).Error
+}

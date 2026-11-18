@@ -55,6 +55,25 @@ func (c ConnProtocol) IsValid() bool {
 	return false
 }
 
+// CollectionMode describes how the platform obtains a device's configuration.
+type CollectionMode string
+
+const (
+	// CollectionModePull means the platform logs in and pulls the configuration.
+	CollectionModePull CollectionMode = "pull"
+	// CollectionModeSFTPPush means the device pushes its configuration to the
+	// platform over SFTP and must never be pulled.
+	CollectionModeSFTPPush CollectionMode = "sftp_push"
+)
+
+func (m CollectionMode) IsValid() bool {
+	switch m {
+	case CollectionModePull, CollectionModeSFTPPush:
+		return true
+	}
+	return false
+}
+
 type Device struct {
 	ID                uint           `gorm:"primarykey" json:"id"`
 	Name              string         `gorm:"size:128;not null" json:"name"`
@@ -68,6 +87,7 @@ type Device struct {
 	SSHKey            string         `gorm:"size:4096" json:"-"`
 	EnablePassword    string         `gorm:"size:255" json:"-"`
 	Enabled           bool           `gorm:"default:true" json:"enabled"`
+	CollectionMode    CollectionMode `gorm:"size:16;not null;default:pull" json:"collection_mode"`
 	GroupID           *uint          `gorm:"index" json:"group_id"`
 	Group             *Group         `gorm:"foreignKey:GroupID" json:"-"`
 	GroupName         string         `gorm:"-" json:"group_name"`
@@ -83,6 +103,12 @@ type Device struct {
 
 func (Device) TableName() string {
 	return "devices"
+}
+
+// IsPullable reports whether the platform may collect this device's
+// configuration itself. SFTP push devices are excluded from every pull path.
+func (d *Device) IsPullable() bool {
+	return d.CollectionMode != CollectionModeSFTPPush
 }
 
 type Group struct {

@@ -60,6 +60,9 @@ func (s *deviceServiceImpl) Create(ctx context.Context, device *model.Device) (*
 	if !device.Protocol.IsValid() {
 		return nil, fmt.Errorf("无效的连接协议，支持: ssh, telnet")
 	}
+	if err := normalizeCollectionMode(device); err != nil {
+		return nil, err
+	}
 	if device.Port < 1 || device.Port > 65535 {
 		return nil, fmt.Errorf("无效的端口号，范围: 1-65535")
 	}
@@ -155,21 +158,23 @@ func (s *deviceServiceImpl) Update(ctx context.Context, id uint, device *model.D
 	existing.Protocol = device.Protocol
 	existing.Port = device.Port
 	existing.Username = device.Username
-	if device.Password != "" {
+	// Clients read devices back with masked credentials and send the mask back
+	// on edit; re-encrypting "******" would silently destroy the real secret.
+	if !isMaskedSecret(device.Password) && device.Password != "" {
 		encrypted, err := crypto.Encrypt(device.Password, s.encryptionKey)
 		if err != nil {
 			return nil, fmt.Errorf("加密密码失败: %w", err)
 		}
 		existing.Password = encrypted
 	}
-	if device.SSHKey != "" {
+	if !isMaskedSecret(device.SSHKey) && device.SSHKey != "" {
 		encrypted, err := crypto.Encrypt(device.SSHKey, s.encryptionKey)
 		if err != nil {
 			return nil, fmt.Errorf("加密SSH密钥失败: %w", err)
 		}
 		existing.SSHKey = encrypted
 	}
-	if device.EnablePassword != "" {
+	if !isMaskedSecret(device.EnablePassword) && device.EnablePassword != "" {
 		encrypted, err := crypto.Encrypt(device.EnablePassword, s.encryptionKey)
 		if err != nil {
 			return nil, fmt.Errorf("加密Enable密码失败: %w", err)
@@ -179,7 +184,11 @@ func (s *deviceServiceImpl) Update(ctx context.Context, id uint, device *model.D
 	existing.GroupID = device.GroupID
 	existing.BackupInterval = device.BackupInterval
 	existing.Enabled = device.Enabled
+	existing.CollectionMode = device.CollectionMode
 
+	if err := normalizeCollectionMode(existing); err != nil {
+		return nil, err
+	}
 	if !existing.Vendor.IsValid() {
 		return nil, fmt.Errorf("无效的厂商类型，支持: cisco, h3c, huawei, ruijie")
 	}
@@ -222,6 +231,9 @@ func (s *deviceServiceImpl) TriggerBackup(ctx context.Context, deviceID uint) (*
 	}
 	if !device.Enabled {
 		return nil, fmt.Errorf("设备已禁用，无法触发备份")
+	}
+	if !device.IsPullable() {
+		return nil, apperr.Wrapf(apperr.ErrDeviceNotPullable, "设备 %s 使用 SFTP 上传模式，不支持平台主动拉取", device.Name)
 	}
 	task := &model.BackupTask{
 		DeviceID:   deviceID,
@@ -595,4 +607,25 @@ func (s *deviceServiceImpl) DisableDevice(ctx context.Context, id uint) error {
 	device.Enabled = false
 	device.Group = nil
 	return s.deviceRepo.Update(ctx, device)
+}
+
+// normalizeCollectionMode defaults an empty collection mode to pull and rejects
+// unknown values, so existing callers keep the pull behaviour.
+func normalizeCollectionMode(device *model.Device) error {
+	if device.CollectionMode == "" {
+		device.CollectionMode = model.CollectionModePull
+	}
+	if !device.CollectionMode.IsValid() {
+		return fmt.Errorf("无效的采集方式，支持: pull, sftp_push")
+	}
+	return nil
+}
+
+// maskedSecret is the placeholder the API returns instead of real credentials.
+const maskedSecret = "******"
+
+// isMaskedSecret reports whether a client sent the read-only placeholder back,
+// in which case the stored credential must be preserved unchanged.
+func isMaskedSecret(value string) bool {
+	return value == maskedSecret
 }

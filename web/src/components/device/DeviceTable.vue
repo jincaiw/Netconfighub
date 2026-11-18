@@ -12,6 +12,12 @@
       <template #vendor="{ row }">{{ vendorLabelMap[row.vendor] || row.vendor }}</template>
       <template #model="{ row }">{{ modelLabelMap[row.model] || row.model }}</template>
       <template #group_name="{ row }">{{ row.group_name || '-' }}</template>
+      <template #collection_mode="{ row }">
+        <t-tag v-if="row.collection_mode === 'sftp_push'" theme="primary" variant="light" size="small">
+          SFTP 主动上传
+        </t-tag>
+        <t-tag v-else variant="outline" size="small">平台拉取</t-tag>
+      </template>
       <template #enabled="{ row }">
         <t-switch
           :model-value="row.enabled"
@@ -29,7 +35,15 @@
         <t-space size="small" class="device-actions">
           <t-button size="small" variant="outline" @click="emit('detail', row.id)">详情</t-button>
           <t-button size="small" variant="outline" @click="emit('edit', row)">编辑</t-button>
-          <t-button size="small" theme="primary" @click="emit('backup', row.id)">备份</t-button>
+          <t-button
+            size="small"
+            theme="primary"
+            :disabled="row.collection_mode === 'sftp_push'"
+            :title="row.collection_mode === 'sftp_push' ? '该设备使用 SFTP 主动上传，平台不会拉取' : ''"
+            @click="emit('backup', row.id)"
+          >
+            备份
+          </t-button>
           <t-button size="small" theme="danger" variant="outline" @click="emit('delete', row)">删除</t-button>
         </t-space>
       </template>
@@ -67,6 +81,7 @@ const columns: PrimaryTableCol<Device>[] = [
   { title: '厂商', colKey: 'vendor', width: 70 },
   { title: '型号', colKey: 'model', width: 80 },
   { title: '分组', colKey: 'group_name', width: 90 },
+  { title: '采集方式', colKey: 'collection_mode', width: 110 },
   { title: '启用状态', colKey: 'enabled', width: 85 },
   { title: '备份状态', colKey: 'last_backup_status', width: 95 },
   { title: '最近备份', colKey: 'last_backup_at', width: 140 },

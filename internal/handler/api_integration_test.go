@@ -32,6 +32,8 @@ func setupIntegrationDB(t *testing.T) *gorm.DB {
 		&model.BackupTask{},
 		&model.Baseline{},
 		&model.Deviation{},
+		&model.DeviceSFTPAccount{},
+		&model.SFTPUpload{},
 	); err != nil {
 		t.Fatalf("数据库迁移失败: %v", err)
 	}
@@ -62,19 +64,31 @@ func setupIntegrationRouter(db *gorm.DB) *gin.Engine {
 
 	loginLimiter := middleware.NewRateLimiter(10, time.Minute)
 	backupSvc.SetScheduler(&mockScheduler{})
+
+	sftpAccountSvc := service.NewSFTPAccountService(
+		repository.NewDeviceSFTPAccountRepository(db), deviceRepo, nil)
+	sftpUploadSvc := service.NewSFTPUploadService(service.SFTPUploadDeps{
+		UploadRepo:     repository.NewSFTPUploadRepository(db),
+		DeviceRepo:     deviceRepo,
+		BackupTaskRepo: backupTaskRepo,
+	})
+
 	router := NewRouter(RouterDeps{
-		AdminService:     adminSvc,
-		TokenService:     tokenSvc,
-		AuthService:      authSvc,
-		DeviceService:    deviceSvc,
-		GroupService:     groupSvc,
-		BackupService:    backupSvc,
-		BaselineService:  baselineSvc,
-		DeviationService: deviationSvc,
-		AlertService:     alertSvc,
-		TokenAuth:        middleware.APITokenAuth(tokenRepo),
-		JWTSecret:        "test-jwt-secret",
-		LoginRateLimiter: loginLimiter,
+		AdminService:       adminSvc,
+		TokenService:       tokenSvc,
+		AuthService:        authSvc,
+		DeviceService:      deviceSvc,
+		GroupService:       groupSvc,
+		BackupService:      backupSvc,
+		BaselineService:    baselineSvc,
+		DeviationService:   deviationSvc,
+		AlertService:       alertSvc,
+		SFTPAccountService: sftpAccountSvc,
+		SFTPUploadService:  sftpUploadSvc,
+		SFTPStatus:         stubSFTPStatus{},
+		TokenAuth:          middleware.APITokenAuth(tokenRepo),
+		JWTSecret:          "test-jwt-secret",
+		LoginRateLimiter:   loginLimiter,
 	})
 
 	engine := gin.New()

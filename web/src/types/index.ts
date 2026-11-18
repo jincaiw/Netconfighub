@@ -15,6 +15,7 @@ export interface Device {
   last_failure_reason?: string
   retry_count: number
   backup_interval?: string
+  collection_mode: 'pull' | 'sftp_push'
   created_at: string
   updated_at: string
 }
@@ -33,6 +34,7 @@ export interface DeviceCreateRequest {
   backup_interval?: string
   group_id?: number
   enabled?: boolean
+  collection_mode?: 'pull' | 'sftp_push'
 }
 
 export interface Group {
@@ -172,4 +174,55 @@ export interface AuditLog {
   detail: string
   client_ip: string
   created_at: string
+}
+
+// ---- SFTP 主动上传 ----
+
+export type SftpAccountStatus = 'active' | 'disabled'
+
+export interface SftpAccount {
+  id: number
+  device_id: number
+  username: string
+  status: SftpAccountStatus
+  last_used_at?: string
+  created_at: string
+  updated_at: string
+}
+
+/** 仅在创建或重置账号时返回一次，关闭弹窗后不再可用 */
+export interface SftpAccountCredentials {
+  account: SftpAccount
+  password: string
+}
+
+export interface SftpStatus {
+  enabled: boolean
+  listen_addr: string
+  fingerprint: string
+  active_conns: number
+  max_conns: number
+}
+
+export type SftpUploadStage = 'received' | 'archiving' | 'archived' | 'failed' | 'rejected'
+
+export interface SftpUpload {
+  id: number
+  device_id: number
+  account_id: number
+  backup_task_id?: number
+  stage: SftpUploadStage
+  received_at: string
+  received_bytes: number
+  received_hash: string
+  archived_at?: string
+  config_hash: string
+  stored_path: string
+  client_filename: string
+  remote_addr: string
+  error_type: string
+  failure_reason: string
+  retry_count: number
+  created_at: string
+  updated_at: string
 }

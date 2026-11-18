@@ -12,58 +12,67 @@ import (
 // The API-token middleware is assembled in cmd/api/main.go where the data layer
 // is available, so the router no longer depends on any repository package.
 type RouterDeps struct {
-	AdminService     service.AdminService
-	TokenService     service.APITokenService
-	AuthService      service.AuthService
-	DeviceService    service.DeviceService
-	GroupService     service.GroupService
-	BackupService    service.BackupService
-	BaselineService  service.BaselineService
-	DeviationService service.DeviationService
-	AlertService     service.AlertService
-	HookService      service.HookService
-	ConfigService    service.ConfigService
-	AuditService     service.AuditService
-	TokenAuth        gin.HandlerFunc
-	JWTSecret        string
-	LoginRateLimiter *middleware.RateLimiter
+	AdminService       service.AdminService
+	TokenService       service.APITokenService
+	AuthService        service.AuthService
+	DeviceService      service.DeviceService
+	GroupService       service.GroupService
+	BackupService      service.BackupService
+	BaselineService    service.BaselineService
+	DeviationService   service.DeviationService
+	AlertService       service.AlertService
+	HookService        service.HookService
+	ConfigService      service.ConfigService
+	AuditService       service.AuditService
+	SFTPAccountService service.SFTPAccountService
+	SFTPUploadService  service.SFTPUploadService
+	SFTPStatus         SFTPStatusProvider
+	TokenAuth          gin.HandlerFunc
+	JWTSecret          string
+	LoginRateLimiter   *middleware.RateLimiter
 }
 
 type Router struct {
-	adminService     service.AdminService
-	tokenService     service.APITokenService
-	authService      service.AuthService
-	deviceService    service.DeviceService
-	groupService     service.GroupService
-	backupService    service.BackupService
-	baselineService  service.BaselineService
-	deviationService service.DeviationService
-	alertService     service.AlertService
-	hookService      service.HookService
-	configService    service.ConfigService
-	auditService     service.AuditService
-	jwtSecret        string
-	tokenAuth        gin.HandlerFunc
-	loginRateLimiter *middleware.RateLimiter
+	adminService       service.AdminService
+	tokenService       service.APITokenService
+	authService        service.AuthService
+	deviceService      service.DeviceService
+	groupService       service.GroupService
+	backupService      service.BackupService
+	baselineService    service.BaselineService
+	deviationService   service.DeviationService
+	alertService       service.AlertService
+	hookService        service.HookService
+	configService      service.ConfigService
+	auditService       service.AuditService
+	sftpAccountService service.SFTPAccountService
+	sftpUploadService  service.SFTPUploadService
+	sftpStatus         SFTPStatusProvider
+	jwtSecret          string
+	tokenAuth          gin.HandlerFunc
+	loginRateLimiter   *middleware.RateLimiter
 }
 
 func NewRouter(deps RouterDeps) *Router {
 	return &Router{
-		adminService:     deps.AdminService,
-		tokenService:     deps.TokenService,
-		authService:      deps.AuthService,
-		deviceService:    deps.DeviceService,
-		groupService:     deps.GroupService,
-		backupService:    deps.BackupService,
-		baselineService:  deps.BaselineService,
-		deviationService: deps.DeviationService,
-		alertService:     deps.AlertService,
-		hookService:      deps.HookService,
-		configService:    deps.ConfigService,
-		auditService:     deps.AuditService,
-		jwtSecret:        deps.JWTSecret,
-		tokenAuth:        deps.TokenAuth,
-		loginRateLimiter: deps.LoginRateLimiter,
+		adminService:       deps.AdminService,
+		tokenService:       deps.TokenService,
+		authService:        deps.AuthService,
+		deviceService:      deps.DeviceService,
+		groupService:       deps.GroupService,
+		backupService:      deps.BackupService,
+		baselineService:    deps.BaselineService,
+		deviationService:   deps.DeviationService,
+		alertService:       deps.AlertService,
+		hookService:        deps.HookService,
+		configService:      deps.ConfigService,
+		auditService:       deps.AuditService,
+		sftpAccountService: deps.SFTPAccountService,
+		sftpUploadService:  deps.SFTPUploadService,
+		sftpStatus:         deps.SFTPStatus,
+		jwtSecret:          deps.JWTSecret,
+		tokenAuth:          deps.TokenAuth,
+		loginRateLimiter:   deps.LoginRateLimiter,
 	}
 }
 
@@ -181,6 +190,29 @@ func (r *Router) Setup(engine *gin.Engine) {
 				configs.GET("", r.listConfigs)
 				configs.GET("/:key", r.getConfig)
 				configs.PUT("", r.setConfig)
+			}
+
+			sftp := authenticated.Group("/sftp")
+			{
+				sftp.GET("/status", r.sftpStatusHandler)
+			}
+
+			sftpAccounts := authenticated.Group("/devices/:id/sftp-account")
+			{
+				sftpAccounts.GET("", r.getSFTPAccount)
+				sftpAccounts.POST("", r.createSFTPAccount)
+				sftpAccounts.POST("/reset", r.resetSFTPAccount)
+				sftpAccounts.PUT("/enable", r.enableSFTPAccount)
+				sftpAccounts.PUT("/disable", r.disableSFTPAccount)
+				sftpAccounts.DELETE("", r.deleteSFTPAccount)
+			}
+
+			authenticated.GET("/devices/:id/sftp-uploads", r.listSFTPUploads)
+
+			sftpUploads := authenticated.Group("/sftp-uploads")
+			{
+				sftpUploads.GET("/:id", r.getSFTPUpload)
+				sftpUploads.POST("/:id/retry", r.retrySFTPUpload)
 			}
 
 			authenticated.GET("/failed-devices", r.listFailedDevices)

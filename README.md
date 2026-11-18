@@ -147,6 +147,61 @@ docker compose ps
 
 Docker Hub: <https://hub.docker.com/r/qing1205/netconfighub>
 
+## SFTP Device Upload
+
+Some devices cannot be polled over SSH/Telnet and instead push their own
+configuration to the platform. NetConfigHub can act as the SFTP server for
+those devices.
+
+The listener is **disabled by default**. Enable it with:
+
+```yaml
+sftp:
+  enabled: true
+  host: "0.0.0.0"
+  port: 2022
+  host_key_path: "./data/sftp/host_key"
+  staging_dir: "./data/sftp"
+  max_file_size_bytes: 10485760
+  max_connections: 16
+  idle_timeout: "60s"
+  session_timeout: "10m"
+  archive_workers: 2
+  max_retries: 3
+```
+
+or through the environment: `NCH_SFTP_ENABLED`, `NCH_SFTP_HOST`,
+`NCH_SFTP_PORT`, `NCH_SFTP_HOST_KEY_PATH`, `NCH_SFTP_STAGING_DIR`,
+`NCH_SFTP_MAX_FILE_SIZE`, `NCH_SFTP_MAX_CONNECTIONS`.
+
+### Setup
+
+1. Start the service and check the log for the host key fingerprint, or call
+   `GET /api/v1/sftp/status`.
+2. Create or edit a device and set `collection_mode` to `sftp_push`. Such
+   devices are never polled by the scheduler, group backup or manual backup
+   (the API returns `409`).
+3. Create an upload account from the device detail page. The password is shown
+   **once** and stored only as a bcrypt hash.
+4. Configure the device to upload its configuration to `host:2022` with that
+   account, writing to `/upload/running-config.txt`.
+5. Verify the fingerprint on the device side before trusting the connection.
+
+### Behaviour
+
+- Only the `sftp` subsystem is served: shell, exec, PTY and port forwarding are
+  refused. Downloads, deletes, renames outside the upload root, and directory
+  listings are denied.
+- Reception and archiving are tracked separately. A completed transfer is
+  `received`; only a successful Git write marks it `archived` and updates the
+  device state, baseline comparison, alerts, hooks and audit trail.
+- Identical content does not create a second Git commit.
+- Failed archives keep the staged file and can be retried from the UI or
+  `POST /api/v1/sftp-uploads/:id/retry`.
+- Device-side compatibility has not been verified against real hardware. Verify
+  the exact client behaviour (direct write vs. rename, running vs. startup
+  config, encoding) for your model before rollout.
+
 ## Configuration
 
 Important settings in `configs/config.yaml`:

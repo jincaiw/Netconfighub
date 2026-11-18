@@ -141,6 +141,53 @@ docker compose ps
 
 Docker Hub：<https://hub.docker.com/r/qing1205/netconfighub>
 
+## SFTP 设备主动上传
+
+部分设备无法通过 SSH/Telnet 被平台拉取，只能自行把配置推送到平台。
+NetConfigHub 可以作为这类设备的 SFTP 服务端。
+
+该监听**默认关闭**，启用方式：
+
+```yaml
+sftp:
+  enabled: true
+  host: "0.0.0.0"
+  port: 2022
+  host_key_path: "./data/sftp/host_key"
+  staging_dir: "./data/sftp"
+  max_file_size_bytes: 10485760
+  max_connections: 16
+  idle_timeout: "60s"
+  session_timeout: "10m"
+  archive_workers: 2
+  max_retries: 3
+```
+
+或使用环境变量：`NCH_SFTP_ENABLED`、`NCH_SFTP_HOST`、`NCH_SFTP_PORT`、
+`NCH_SFTP_HOST_KEY_PATH`、`NCH_SFTP_STAGING_DIR`、`NCH_SFTP_MAX_FILE_SIZE`、
+`NCH_SFTP_MAX_CONNECTIONS`。
+
+### 配置步骤
+
+1. 启动服务，从日志或 `GET /api/v1/sftp/status` 获取主机密钥指纹。
+2. 创建或编辑设备，把 `collection_mode` 设为 `sftp_push`。这类设备不会被
+   定时调度、分组备份或手动备份拉取（API 返回 `409`）。
+3. 在设备详情页创建上传账号。口令**只显示一次**，服务端仅保存 bcrypt 哈希。
+4. 在设备上配置向 `host:2022` 上传配置，写入 `/upload/running-config.txt`。
+5. 设备端务必先核对主机密钥指纹。
+
+### 行为说明
+
+- 仅开放 `sftp` 子系统：shell、exec、PTY 与端口转发全部拒绝；下载、删除、
+  上传根之外的改名和目录列举同样被拒绝。
+- 接收与归档分两阶段：传输完成只是 `received`，只有 Git 写入成功才变为
+  `archived` 并更新设备状态、基线比对、告警、Hook 与审计。
+- 内容相同不会产生第二个 Git 提交。
+- 归档失败会保留暂存文件，可在界面或通过
+  `POST /api/v1/sftp-uploads/:id/retry` 重试。
+- 尚未针对真实设备型号验证兼容性。上线前请确认具体客户端的写入方式
+  （直接写 vs 临时文件重命名）、running/startup 语义与编码。
+
 ## 配置
 
 `configs/config.yaml` 中的重要配置：
