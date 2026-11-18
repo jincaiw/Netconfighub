@@ -31,6 +31,7 @@ import { useRouter } from 'vue-router'
 import { Button, Space, DialogPlugin, MessagePlugin, type PrimaryTableCol } from 'tdesign-vue-next'
 import { getFailedDevices, triggerDeviceBackup } from '@/api/backup'
 import BackupStatus from '@/components/BackupStatus.vue'
+import { formatDateTime } from '@/utils/datetime'
 import type { Device } from '@/types'
 
 const router = useRouter()
@@ -77,7 +78,13 @@ const columns: PrimaryTableCol<Device>[] = [
   },
   { title: '失败原因', colKey: 'last_failure_reason', ellipsis: true },
   { title: '重试次数', colKey: 'retry_count', width: 90 },
-  { title: '最近备份时间', colKey: 'last_backup_at', width: 170 },
+  {
+    title: '最近备份时间',
+    colKey: 'last_backup_at',
+    width: 170,
+    cell: (h, { row }) =>
+      h('span', { class: 'datetime-cell', title: row.last_backup_at ?? '' }, formatDateTime(row.last_backup_at)),
+  },
   {
     title: '操作',
     colKey: 'actions',

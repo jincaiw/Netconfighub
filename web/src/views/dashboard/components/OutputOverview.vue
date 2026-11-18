@@ -60,7 +60,12 @@ const taskColumns: PrimaryTableCol<RecentTaskRow>[] = [
     width: 100,
     cell: (h, { row }) => h(BackupStatus, { status: row.status }),
   },
-  { title: '完成时间', colKey: 'finished_at', width: 170 },
+  {
+    title: '完成时间',
+    colKey: 'finished_at',
+    width: 170,
+    cell: (h, { row }) => h('span', { class: 'datetime-cell', title: row.finished_at }, row.finished_at),
+  },
 ]
 
 const failedColumns: PrimaryTableCol<FailedDeviceRow>[] = [

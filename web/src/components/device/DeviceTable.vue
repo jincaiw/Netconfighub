@@ -22,7 +22,9 @@
       <template #last_backup_status="{ row }">
         <BackupStatus :status="row.last_backup_status" />
       </template>
-      <template #last_backup_at="{ row }">{{ row.last_backup_at || '-' }}</template>
+      <template #last_backup_at="{ row }">
+        <span class="datetime-cell" :title="row.last_backup_at || ''">{{ formatDateTime(row.last_backup_at) }}</span>
+      </template>
       <template #actions="{ row }">
         <t-space size="small" class="device-actions">
           <t-button size="small" variant="outline" @click="emit('detail', row.id)">详情</t-button>
@@ -31,7 +33,7 @@
           <t-button size="small" theme="danger" variant="outline" @click="emit('delete', row)">删除</t-button>
         </t-space>
       </template>
-      <template #empty>暂无数据</template>
+      <template #empty><span class="empty-state-text">暂无数据</span></template>
     </t-table>
   </div>
 </template>
@@ -39,6 +41,7 @@
 <script setup lang="ts">
 import { type PrimaryTableCol } from 'tdesign-vue-next'
 import BackupStatus from '@/components/BackupStatus.vue'
+import { formatDateTime } from '@/utils/datetime'
 import type { Device } from '@/types'
 
 defineProps<{

@@ -18,8 +18,8 @@
       style="width: 160px"
       @change="$emit('group-change')"
     />
-    <t-button :loading="exportLoading" @click="$emit('export')">导出</t-button>
-    <t-button @click="$emit('import')">导入</t-button>
+    <t-button variant="outline" :loading="exportLoading" @click="$emit('export')">导出</t-button>
+    <t-button variant="outline" @click="$emit('import')">导入</t-button>
     <t-button theme="primary" @click="$emit('create')">
       <template #icon><AddIcon /></template>
       添加设备

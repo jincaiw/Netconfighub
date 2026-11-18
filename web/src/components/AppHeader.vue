@@ -108,9 +108,17 @@
               v-for="option in themeOptions"
               :key="option.value"
               :data-testid="`theme-option-${option.value}`"
+              :class="{ 'theme-option--selected': option.value === settingStore.mode }"
               @click="settingStore.changeMode(option.value)"
             >
               {{ option.label }}
+              <span
+                v-if="option.value === settingStore.mode"
+                class="theme-selected-mark"
+                data-testid="theme-selected-mark"
+                aria-hidden="true"
+              >✓</span>
+              <span v-if="option.value === settingStore.mode" class="sr-only">当前主题</span>
             </t-dropdown-item>
           </template>
         </t-dropdown>
@@ -297,6 +305,16 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
+.theme-option--selected {
+  color: var(--td-brand-color);
+  font-weight: 500;
+}
+
+.theme-selected-mark {
+  margin-left: 6px;
+  color: var(--td-brand-color);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
@@ -348,7 +366,7 @@ onUnmounted(() => {
 .alert-empty {
   padding: 24px 0;
   text-align: center;
-  color: var(--td-text-color-placeholder);
+  color: var(--td-text-color-secondary);
   font-size: 13px;
 }
 

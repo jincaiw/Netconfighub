@@ -21,7 +21,7 @@ test.describe('Hook管理', () => {
   test('Hook列表页面', async ({ page }) => {
     await login(page)
     await page.goto('/settings')
-    await expect(page.getByText('API Token 管理')).toBeVisible()
+    await expect(page.getByText('接口令牌（Token）管理')).toBeVisible()
   })
 
   test('通过API创建Webhook Hook', async ({ request }) => {

@@ -63,10 +63,10 @@
         <t-form-item label="密码">
           <t-input v-model="newDevice.password" type="password" placeholder="请输入密码" />
         </t-form-item>
-        <t-form-item label="SSH Key">
+        <t-form-item label="SSH 私钥">
           <t-textarea v-model="newDevice.ssh_key" :autosize="{ minRows: 3 }" placeholder="可选，粘贴 SSH 私钥" />
         </t-form-item>
-        <t-form-item label="Enable 密码">
+        <t-form-item label="特权模式密码">
           <t-input v-model="newDevice.enable_password" type="password" placeholder="可选，特权模式密码" />
         </t-form-item>
         <t-form-item label="备份间隔">
@@ -122,10 +122,10 @@
         <t-form-item label="密码">
           <t-input v-model="editingDevice.password" type="password" placeholder="留空则不修改" />
         </t-form-item>
-        <t-form-item label="SSH Key">
+        <t-form-item label="SSH 私钥">
           <t-textarea v-model="editingDevice.ssh_key" :autosize="{ minRows: 3 }" placeholder="留空则不修改" />
         </t-form-item>
-        <t-form-item label="Enable 密码">
+        <t-form-item label="特权模式密码">
           <t-input v-model="editingDevice.enable_password" type="password" placeholder="留空则不修改" />
         </t-form-item>
         <t-form-item label="备份间隔">

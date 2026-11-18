@@ -13,7 +13,7 @@
         row-key="id"
         @page-change="handlePageChange"
       >
-        <template #empty>暂无数据</template>
+        <template #empty><span class="empty-state-text">暂无数据</span></template>
       </t-table>
     </t-card>
   </div>
@@ -23,6 +23,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { MessagePlugin, type PrimaryTableCol } from 'tdesign-vue-next'
 import { getAuditLogs } from '@/api/audit'
+import { formatDateTime } from '@/utils/datetime'
 import type { AuditLog } from '@/types'
 
 const loading = ref(false)
@@ -50,7 +51,13 @@ const columns: PrimaryTableCol<AuditLog>[] = [
   { title: '目标 ID', colKey: 'target_id', width: 90 },
   { title: '详情', colKey: 'detail', ellipsis: true },
   { title: '客户端 IP', colKey: 'client_ip', width: 130 },
-  { title: '时间', colKey: 'created_at', width: 170 },
+  {
+    title: '时间',
+    colKey: 'created_at',
+    width: 170,
+    cell: (h, { row }) =>
+      h('span', { class: 'datetime-cell', title: row.created_at ?? '' }, formatDateTime(row.created_at)),
+  },
 ]
 
 async function fetchLogs() {

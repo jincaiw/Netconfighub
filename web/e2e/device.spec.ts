@@ -202,4 +202,17 @@ test.describe('设备管理流程', () => {
       await expect(row.getByRole('button', { name })).toBeVisible()
     }
   })
+
+  test('页面头部仅添加设备为实心主按钮，导出与导入为次级', async ({ page }) => {
+    await login(page)
+    await page.goto('/devices')
+    const background = async (name: string) =>
+      page.getByRole('button', { name, exact: true }).first().evaluate((el) => getComputedStyle(el).backgroundColor)
+    const primary = await background('添加设备')
+    const exportBg = await background('导出')
+    const importBg = await background('导入')
+    expect(primary).not.toBe(exportBg)
+    expect(primary).not.toBe('rgba(0, 0, 0, 0)')
+    expect(importBg).toBe(exportBg)
+  })
 })

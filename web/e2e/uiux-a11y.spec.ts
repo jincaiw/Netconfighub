@@ -168,4 +168,33 @@ test.describe('UI/UX 整改可访问性与反馈回归', () => {
     })
     expect(contrast).toBeGreaterThanOrEqual(4.5)
   })
+
+  test('空态文字计算色为 secondary token 且不是 placeholder', async ({ page }) => {
+    await page.goto('/login')
+    await page.route(/\/api\/v1\/tokens(?:\?|$)/, (route) =>
+      route.fulfill({ json: { code: 0, message: 'ok', data: [] } }),
+    )
+    await login(page)
+    await page.goto('/settings')
+    const empty = page.locator('.empty-state-text').first()
+    await expect(empty).toBeVisible()
+    const colors = await page.evaluate(() => {
+      const el = document.querySelector('.empty-state-text') as HTMLElement
+      const probe = (color: string) => {
+        const span = document.createElement('span')
+        span.style.color = color
+        document.body.appendChild(span)
+        const value = getComputedStyle(span).color
+        span.remove()
+        return value
+      }
+      return {
+        actual: getComputedStyle(el).color,
+        secondary: probe('var(--td-text-color-secondary)'),
+        placeholder: probe('var(--td-text-color-placeholder)'),
+      }
+    })
+    expect(colors.actual).toBe(colors.secondary)
+    expect(colors.actual).not.toBe(colors.placeholder)
+  })
 })

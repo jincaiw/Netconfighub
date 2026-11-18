@@ -3,7 +3,7 @@
     <t-card title="基线列表">
       <template #actions>
         <t-space>
-          <t-button :loading="exportLoading" @click="handleExportDeviations">导出报告</t-button>
+          <t-button variant="outline" :loading="exportLoading" @click="handleExportDeviations">导出报告</t-button>
           <t-button theme="primary" @click="openCreateModal">创建基线</t-button>
         </t-space>
       </template>
@@ -68,7 +68,7 @@
         >
           <pre class="diff-content">{{ deviation.diff_content }}</pre>
           <template #footer>
-            <span class="diff-time">检测时间: {{ deviation.detected_at }}</span>
+            <span class="diff-time">检测时间: <span class="datetime-cell" :title="deviation.detected_at || ''">{{ formatDateTime(deviation.detected_at) }}</span></span>
           </template>
         </t-card>
       </div>
@@ -117,6 +117,7 @@ import {
   getDeviations,
   exportDeviations,
 } from '@/api/baseline'
+import { formatDateTime } from '@/utils/datetime'
 import type { Baseline, Deviation, Device, Group } from '@/types'
 
 const loading = ref(false)
@@ -187,8 +188,20 @@ const baselineColumns: PrimaryTableCol<Baseline>[] = [
     width: 100,
     cell: (_h, { row }) => (row.scope === 'device' ? '设备' : '分组'),
   },
-  { title: '创建时间', colKey: 'created_at', width: 170 },
-  { title: '更新时间', colKey: 'updated_at', width: 170 },
+  {
+    title: '创建时间',
+    colKey: 'created_at',
+    width: 170,
+    cell: (h, { row }) =>
+      h('span', { class: 'datetime-cell', title: row.created_at ?? '' }, formatDateTime(row.created_at)),
+  },
+  {
+    title: '更新时间',
+    colKey: 'updated_at',
+    width: 170,
+    cell: (h, { row }) =>
+      h('span', { class: 'datetime-cell', title: row.updated_at ?? '' }, formatDateTime(row.updated_at)),
+  },
   {
     title: '操作',
     colKey: 'actions',

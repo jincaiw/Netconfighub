@@ -37,6 +37,7 @@ import { MessagePlugin } from 'tdesign-vue-next'
 import { getDevices } from '@/api/device'
 import { getBackupTasks, getFailedDevices } from '@/api/backup'
 import type { BackupTask, Device } from '@/types'
+import { formatDateTime } from '@/utils/datetime'
 import { useAlertSummary } from '@/composables/useAlertSummary'
 import TopPanel from './dashboard/components/TopPanel.vue'
 import MiddleChart from './dashboard/components/MiddleChart.vue'
@@ -85,7 +86,7 @@ const recentTasks = computed<RecentTaskRow[]>(() =>
     id: task.id,
     device_name: task.device_name || `设备#${task.device_id}`,
     status: task.status,
-    finished_at: task.finished_at || '-',
+    finished_at: formatDateTime(task.finished_at),
   })),
 )
 
@@ -182,8 +183,8 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
+/* 不覆盖子组件的 t-row display:flex，否则四卡无法同排（TDesign grid 契约） */
 .dashboard-section {
-  display: block;
   margin-bottom: 16px;
 }
 

@@ -108,4 +108,15 @@ test.describe('基线管理流程', () => {
     await page.getByRole('button', { name: '删除' }).last().click()
     await deleteResponse
   })
+
+  test('页面头部仅创建基线为实心主按钮，导出报告为次级', async ({ page }) => {
+    await login(page)
+    await page.goto('/baselines')
+    const background = async (name: string) =>
+      page.getByRole('button', { name, exact: true }).first().evaluate((el) => getComputedStyle(el).backgroundColor)
+    const primary = await background('创建基线')
+    const secondary = await background('导出报告')
+    expect(primary).not.toBe(secondary)
+    expect(primary).not.toBe('rgba(0, 0, 0, 0)')
+  })
 })

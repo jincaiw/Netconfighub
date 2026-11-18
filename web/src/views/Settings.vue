@@ -46,12 +46,12 @@
       </t-col>
 
       <t-col :xs="12">
-        <t-card title="API Token 管理">
+        <t-card title="接口令牌（Token）管理">
           <template #actions>
-            <t-button theme="primary" @click="openCreateTokenModal">创建 Token</t-button>
+            <t-button theme="primary" @click="openCreateTokenModal">创建接口令牌（Token）</t-button>
           </template>
           <t-table :columns="tokenColumns" :data="tokens" :loading="tokensLoading" row-key="id" size="small">
-            <template #empty>暂无数据</template>
+            <template #empty><span class="empty-state-text">暂无数据</span></template>
           </t-table>
         </t-card>
       </t-col>
@@ -73,16 +73,16 @@
         <t-card title="配置脱敏">
           <t-form :data="sanitizeConfig" label-align="left" label-width="180px">
             <t-form-item label="启用配置脱敏">
-              <t-switch v-model="sanitizeConfig.enabled" />
+              <t-switch v-model="sanitizeConfig.enabled" data-testid="sanitize-main-switch" />
             </t-form-item>
-            <t-form-item label="脱敏密码字段">
-              <t-switch v-model="sanitizeConfig.mask_passwords" :disabled="!sanitizeConfig.enabled" />
+            <t-form-item label="脱敏密码字段" :class="{ 'sanitize-subitem--disabled': !sanitizeConfig.enabled }">
+              <t-switch v-model="sanitizeConfig.mask_passwords" :disabled="!sanitizeConfig.enabled" data-testid="sanitize-sub-passwords" />
             </t-form-item>
-            <t-form-item label="脱敏 SNMP Community">
-              <t-switch v-model="sanitizeConfig.mask_snmp_community" :disabled="!sanitizeConfig.enabled" />
+            <t-form-item label="脱敏 SNMP Community" :class="{ 'sanitize-subitem--disabled': !sanitizeConfig.enabled }">
+              <t-switch v-model="sanitizeConfig.mask_snmp_community" :disabled="!sanitizeConfig.enabled" data-testid="sanitize-sub-snmp" />
             </t-form-item>
-            <t-form-item label="脱敏 Enable Secret">
-              <t-switch v-model="sanitizeConfig.mask_enable_secret" :disabled="!sanitizeConfig.enabled" />
+            <t-form-item label="脱敏特权模式密码" :class="{ 'sanitize-subitem--disabled': !sanitizeConfig.enabled }">
+              <t-switch v-model="sanitizeConfig.mask_enable_secret" :disabled="!sanitizeConfig.enabled" data-testid="sanitize-sub-enable-secret" />
             </t-form-item>
             <t-form-item>
               <t-button theme="primary" :loading="savingSanitize" :disabled="!configLoaded" @click="handleSaveSanitizeConfig">保存脱敏配置</t-button>
@@ -92,10 +92,10 @@
       </t-col>
     </t-row>
 
-    <t-dialog v-model:visible="showCreateToken" header="创建 API Token" :width="440">
+    <t-dialog v-model:visible="showCreateToken" header="创建接口令牌（Token）" :width="440">
       <t-form label-align="left" label-width="80px">
-        <t-form-item label="Token 名称">
-          <t-input v-model="newTokenName" placeholder="请输入 Token 名称" />
+        <t-form-item label="令牌名称">
+          <t-input v-model="newTokenName" placeholder="请输入令牌名称" />
         </t-form-item>
         <t-form-item label="过期时间">
           <t-date-picker
@@ -114,11 +114,11 @@
       </template>
     </t-dialog>
 
-    <t-dialog v-model:visible="showTokenResult" header="Token 创建成功" :close-btn="false" :width="520">
-      <t-alert theme="warning" message="请立即复制 Token，关闭后将无法再次查看。" style="margin-bottom: 16px" />
+    <t-dialog v-model:visible="showTokenResult" header="令牌创建成功" :close-btn="false" :width="520">
+      <t-alert theme="warning" message="请立即复制令牌，关闭后将无法再次查看。" style="margin-bottom: 16px" />
       <t-textarea v-model="newlyCreatedToken" :autosize="{ minRows: 3 }" readonly />
       <template #footer>
-        <t-button theme="primary" @click="handleCopyToken">复制 Token</t-button>
+        <t-button theme="primary" @click="handleCopyToken">复制令牌</t-button>
         <t-button variant="outline" @click="showTokenResult = false">关闭</t-button>
       </template>
     </t-dialog>
@@ -188,7 +188,7 @@ async function fetchTokens() {
     const res = await getTokens()
     tokens.value = res.data
   } catch {
-    MessagePlugin.error('获取 Token 列表失败')
+    MessagePlugin.error('获取令牌列表失败')
   } finally {
     tokensLoading.value = false
   }
@@ -203,17 +203,17 @@ function openCreateTokenModal() {
 function handleDeleteToken(token: ApiToken) {
   DialogPlugin.confirm({
     header: '确认删除',
-    body: `确定要删除 Token "${token.name}" 吗？删除后使用该 Token 的应用将无法访问 API。`,
+    body: `确定要删除令牌 "${token.name}" 吗？删除后使用该令牌的应用将无法访问 API。`,
     theme: 'warning',
     confirmBtn: '删除',
     cancelBtn: '取消',
     onConfirm: async () => {
       try {
         await deleteToken(token.id)
-        MessagePlugin.success('Token 已删除')
+        MessagePlugin.success('令牌已删除')
         fetchTokens()
       } catch {
-        MessagePlugin.error('Token 删除失败')
+        MessagePlugin.error('令牌删除失败')
       }
     },
   })
@@ -221,7 +221,7 @@ function handleDeleteToken(token: ApiToken) {
 
 async function handleCreateToken() {
   if (!newTokenName.value.trim()) {
-    MessagePlugin.warning('请输入 Token 名称')
+    MessagePlugin.warning('请输入令牌名称')
     return
   }
   if (!newTokenExpiresAt.value) {
@@ -238,7 +238,7 @@ async function handleCreateToken() {
     showTokenResult.value = true
     fetchTokens()
   } catch {
-    MessagePlugin.error('Token 创建失败')
+    MessagePlugin.error('令牌创建失败')
   } finally {
     creatingToken.value = false
   }
@@ -246,7 +246,7 @@ async function handleCreateToken() {
 
 function handleCopyToken() {
   navigator.clipboard.writeText(newlyCreatedToken.value).then(() => {
-    MessagePlugin.success('Token 已复制到剪贴板')
+    MessagePlugin.success('令牌已复制到剪贴板')
   }).catch(() => {
     MessagePlugin.error('复制失败')
   })

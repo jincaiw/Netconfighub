@@ -83,4 +83,17 @@ test.describe('主题模式', () => {
     await expect.poll(() => getThemeMode(page)).toBe('dark')
     await expect(page.locator('.app-menu.t-menu--dark:visible')).toBeVisible()
   })
+
+  test('主题下拉仅当前项显示选中标记且随切换更新', async ({ page }) => {
+    await page.getByTestId('theme-switch').click()
+    await expect(page.getByTestId('theme-selected-mark')).toHaveCount(1)
+    const autoItem = page.locator('.t-dropdown__item:visible').filter({ hasText: '跟随系统' })
+    await expect(autoItem).toContainText('当前主题')
+    await page.locator('.t-dropdown__item:visible').filter({ hasText: '深色' }).click()
+    await expect.poll(() => getThemeMode(page)).toBe('dark')
+    await page.getByTestId('theme-switch').click()
+    await expect(page.getByTestId('theme-selected-mark')).toHaveCount(1)
+    const selected = page.locator('.t-dropdown__item:visible').filter({ has: page.getByTestId('theme-selected-mark') })
+    await expect(selected).toContainText('深色')
+  })
 })

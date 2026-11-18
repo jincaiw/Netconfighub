@@ -39,7 +39,7 @@
           <t-descriptions-item label="备份状态">
             <BackupStatus v-if="device" :status="device.last_backup_status" />
           </t-descriptions-item>
-          <t-descriptions-item label="最近备份">{{ device?.last_backup_at || '-' }}</t-descriptions-item>
+          <t-descriptions-item label="最近备份"><span class="datetime-cell" :title="device?.last_backup_at || ''">{{ formatDateTime(device?.last_backup_at) }}</span></t-descriptions-item>
           <t-descriptions-item label="失败原因" :span="2">{{ device?.last_failure_reason || '-' }}</t-descriptions-item>
         </t-descriptions>
       </t-card>
@@ -49,7 +49,7 @@
           <t-tab-panel value="latest" label="最新配置">
             <t-loading :loading="configLoading">
               <div class="config-content">
-                <pre><code>{{ latestConfig || '暂无配置' }}</code></pre>
+                <pre><code><span class="empty-state-text">{{ latestConfig || '暂无配置' }}</span></code></pre>
               </div>
             </t-loading>
           </t-tab-panel>
@@ -108,7 +108,7 @@ v-for="(line, idx) in diffLines" :key="idx"
                 >
                   <pre class="diff-content">{{ deviation.diff_content }}</pre>
                   <template #footer>
-                    <span class="diff-time">检测时间: {{ deviation.detected_at }}</span>
+                    <span class="diff-time">检测时间: <span class="datetime-cell" :title="deviation.detected_at || ''">{{ formatDateTime(deviation.detected_at) }}</span></span>
                   </template>
                 </t-card>
               </div>
@@ -130,6 +130,7 @@ import { triggerDeviceBackup } from '@/api/backup'
 import { getDeviceConfig, getDeviceVersions, getDeviceDeviations, getConfigDiff } from '@/api/config'
 import type { Device, ConfigVersion, Deviation, DiffResult } from '@/types'
 import BackupStatus from '@/components/BackupStatus.vue'
+import { formatDateTime } from '@/utils/datetime'
 
 const router = useRouter()
 const route = useRoute()

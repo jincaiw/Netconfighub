@@ -34,7 +34,7 @@
         row-key="id"
         @page-change="handlePageChange"
       >
-        <template #empty>暂无数据</template>
+        <template #empty><span class="empty-state-text">暂无数据</span></template>
       </t-table>
     </t-card>
   </div>
