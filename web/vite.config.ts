@@ -11,6 +11,24 @@ export default defineConfig({
       '@': resolve(__dirname, 'src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules/echarts') || id.includes('node_modules/zrender')) {
+            return 'echarts'
+          }
+          if (id.includes('node_modules/tdesign-vue-next') || id.includes('node_modules/tdesign-icons-vue-next')) {
+            return 'tdesign'
+          }
+          if (id.includes('node_modules/vue') || id.includes('node_modules/@vue') || id.includes('node_modules/pinia')) {
+            return 'vue-vendor'
+          }
+          return undefined
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
     proxy: {

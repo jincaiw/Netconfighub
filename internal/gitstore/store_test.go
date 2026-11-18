@@ -391,3 +391,50 @@ func TestListDeviceConfigsEmpty(t *testing.T) {
 		t.Fatalf("空仓库设备数量应为 0, got %d", len(devices))
 	}
 }
+
+func TestCountAddedRemoved(t *testing.T) {
+	tests := []struct {
+		name       string
+		oldLines   []string
+		newLines   []string
+		wantAdded  int
+		wantRemove int
+	}{
+		{"identical", []string{"a", "b"}, []string{"a", "b"}, 0, 0},
+		{"pure addition", []string{"a"}, []string{"a", "b", "c"}, 2, 0},
+		{"pure removal", []string{"a", "b", "c"}, []string{"a"}, 0, 2},
+		{"mixed", []string{"a", "b"}, []string{"a", "c"}, 1, 1},
+		{"duplicate lines", []string{"a", "a", "b"}, []string{"a", "c", "c"}, 2, 2},
+		{"both empty", nil, nil, 0, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			added, removed := countAddedRemoved(tt.oldLines, tt.newLines)
+			if added != tt.wantAdded || removed != tt.wantRemove {
+				t.Errorf("countAddedRemoved() = (%d, %d), want (%d, %d)", added, removed, tt.wantAdded, tt.wantRemove)
+			}
+		})
+	}
+}
+
+func TestTruncatedDiffCountsApproximation(t *testing.T) {
+	oldLines := []string{"a", "b", "c"}
+	newLines := []string{"a", "c", "d"}
+	text, added, removed := truncatedDiff(oldLines, newLines)
+	if added != 1 || removed != 1 {
+		t.Fatalf("added=%d removed=%d, want 1/1 (multiset approximation)", added, removed)
+	}
+	if text == "" {
+		t.Fatal("truncatedDiff 应返回截断文本")
+	}
+}
+
+// TestGenerateDiffOversizedCountsApproximation forces the truncated path via a
+// low cap and verifies the end-to-end count is the multiset approximation.
+func TestGenerateDiffOversizedCountsApproximation(t *testing.T) {
+	t.Setenv("NCH_LCS_MAX_LINES", "1")
+	_, added, removed := generateDiff("a\nb\n", "a\nc\n")
+	if added != 1 || removed != 1 {
+		t.Fatalf("added=%d removed=%d, want 1/1 (multiset approximation)", added, removed)
+	}
+}

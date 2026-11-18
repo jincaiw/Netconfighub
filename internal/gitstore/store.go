@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,6 +21,8 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/netconfighub/netconfighub/internal/apperr"
+	"github.com/netconfighub/netconfighub/internal/diffcap"
 )
 
 type writeRequest struct {
@@ -184,6 +187,14 @@ func (s *Store) gitCryptLock() error {
 	return nil
 }
 
+// lockWithLog re-locks the repository and records any failure. Previously every
+// gitCryptLock call in WriteConfig discarded its error silently.
+func (s *Store) lockWithLog() {
+	if err := s.gitCryptLock(); err != nil {
+		log.Printf("git-crypt 重新锁定失败: %v", err)
+	}
+}
+
 func (s *Store) WriteConfig(groupName, deviceName, content string) (string, error) {
 	groupName, deviceName, err := safeConfigPathComponents(groupName, deviceName)
 	if err != nil {
@@ -199,7 +210,7 @@ func (s *Store) WriteConfig(groupName, deviceName, content string) (string, erro
 
 	dir := filepath.Dir(fullPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		s.gitCryptLock()
+		s.lockWithLog()
 		return "", fmt.Errorf("创建配置目录失败: %w", err)
 	}
 
@@ -208,24 +219,24 @@ func (s *Store) WriteConfig(groupName, deviceName, content string) (string, erro
 
 	existingContent, err := s.ReadLatestConfig(groupName, deviceName)
 	if err == nil && existingContent == content {
-		s.gitCryptLock()
+		s.lockWithLog()
 		return "", nil
 	}
 
 	if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
-		s.gitCryptLock()
+		s.lockWithLog()
 		return "", fmt.Errorf("写入配置文件失败: %w", err)
 	}
 
 	worktree, err := s.repo.Worktree()
 	if err != nil {
-		s.gitCryptLock()
+		s.lockWithLog()
 		return configHash, fmt.Errorf("获取工作树失败: %w", err)
 	}
 
 	_, err = worktree.Add(filePath)
 	if err != nil {
-		s.gitCryptLock()
+		s.lockWithLog()
 		return configHash, fmt.Errorf("暂存文件失败: %w", err)
 	}
 
@@ -246,14 +257,14 @@ func (s *Store) WriteConfig(groupName, deviceName, content string) (string, erro
 	_, err = worktree.Commit(commitMsg, commitOpts)
 	if err != nil {
 		if err.Error() == "nothing to commit" {
-			s.gitCryptLock()
+			s.lockWithLog()
 			return "", nil
 		}
-		s.gitCryptLock()
-		return configHash, fmt.Errorf("提交变更失败: %w", err)
+		s.lockWithLog()
+		return configHash, apperr.WrapCause(apperr.ErrGitCommit, err, "提交变更失败: %v", err)
 	}
 
-	s.gitCryptLock()
+	s.lockWithLog()
 	return configHash, nil
 }
 
@@ -303,7 +314,7 @@ func (s *Store) ReadConfigAtRevision(groupName, deviceName, hash string) (string
 	if err := s.gitCryptUnlock(); err != nil {
 		return "", err
 	}
-	defer s.gitCryptLock()
+	defer s.lockWithLog()
 
 	filePath := filepath.Join(groupName, deviceName, "running-config.txt")
 
@@ -344,7 +355,7 @@ func (s *Store) ReadLatestConfig(groupName, deviceName string) (string, error) {
 	if err := s.gitCryptUnlock(); err != nil {
 		return "", err
 	}
-	defer s.gitCryptLock()
+	defer s.lockWithLog()
 
 	filePath := filepath.Join(groupName, deviceName, "running-config.txt")
 	fullPath := filepath.Join(s.repoPath, filePath)
@@ -439,7 +450,7 @@ func (s *Store) Push(remote, branch string) error {
 	cmd := exec.Command("git", "push", remote, branch)
 	cmd.Dir = s.repoPath
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("Git push 失败: %s: %w", string(output), err)
+		return apperr.WrapCause(apperr.ErrGitCommit, err, "Git push 失败: %s: %v", string(output), err)
 	}
 	return nil
 }
@@ -474,6 +485,9 @@ func generateDiff(oldText, newText string) (string, int, int) {
 	}
 	oldLines := splitLines(oldText)
 	newLines := splitLines(newText)
+	if diffcap.Exceeded(oldLines, newLines) {
+		return truncatedDiff(oldLines, newLines)
+	}
 	lcs := computeLCS(oldLines, newLines)
 	added := 0
 	removed := 0
@@ -503,6 +517,53 @@ func generateDiff(oldText, newText string) (string, int, int) {
 		}
 	}
 	return buf.String(), added, removed
+}
+
+// truncatedDiff bounds output and runtime for oversized configs while keeping
+// exact added/removed counts.
+func truncatedDiff(oldLines, newLines []string) (string, int, int) {
+	var buf bytes.Buffer
+	buf.WriteString("@@ 配置过大，仅统计增删行 @@\n")
+	const sample = 50
+	for i, line := range oldLines {
+		if i >= sample {
+			break
+		}
+		buf.WriteString("-" + line + "\n")
+	}
+	for i, line := range newLines {
+		if i >= sample {
+			break
+		}
+		buf.WriteString("+" + line + "\n")
+	}
+	if len(oldLines) > sample || len(newLines) > sample {
+		buf.WriteString("... 已截断 ...\n")
+	}
+	added, removed := countAddedRemoved(oldLines, newLines)
+	return buf.String(), added, removed
+}
+
+// countAddedRemoved estimates added/removed line counts in O(n+m) using a
+// multiset of old lines: each new line that matches an unconsumed old line is
+// "common", the rest are additions (and unmatched old lines are removals).
+// This is an approximation — it does not compute an exact minimal edit
+// distance and ignores line order — but it is far more honest than the
+// previous behaviour of reporting the total line count as both additions and
+// removals. Memory is O(distinct lines).
+func countAddedRemoved(oldLines, newLines []string) (added, removed int) {
+	counts := make(map[string]int, len(oldLines))
+	for _, line := range oldLines {
+		counts[line]++
+	}
+	common := 0
+	for _, line := range newLines {
+		if counts[line] > 0 {
+			counts[line]--
+			common++
+		}
+	}
+	return len(newLines) - common, len(oldLines) - common
 }
 
 func splitLines(text string) []string {

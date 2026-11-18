@@ -1,65 +1,66 @@
 <template>
   <div class="baseline-manage">
-    <n-card title="基线列表">
-      <template #header-extra>
-        <n-space>
-          <n-button @click="handleExportDeviations" :loading="exportLoading">导出报告</n-button>
-          <n-button type="primary" @click="openCreateModal">创建基线</n-button>
-        </n-space>
+    <t-card title="基线列表">
+      <template #actions>
+        <t-space>
+          <t-button :loading="exportLoading" @click="handleExportDeviations">导出报告</t-button>
+          <t-button theme="primary" @click="openCreateModal">创建基线</t-button>
+        </t-space>
       </template>
-      <n-data-table
+      <t-table
         :columns="baselineColumns"
         :data="baselines"
         :loading="loading"
-        :pagination="baselinePagination"
-        remote
-        @update:page="handleBaselinePageChange"
-        @update:page-size="handleBaselinePageSizeChange"
+        :pagination="tablePagination"
+        @page-change="handleBaselinePageChange"
       />
-    </n-card>
+    </t-card>
 
-    <n-modal v-model:show="showCreateModal" preset="dialog" :title="editingBaseline ? '编辑基线' : '创建基线'" style="width: 560px">
-      <n-form :model="baselineForm" label-placement="left" label-width="90">
-        <n-form-item v-if="!editingBaseline" label="适用范围">
-          <n-radio-group v-model:value="baselineForm.scope">
-            <n-radio value="device">设备</n-radio>
-            <n-radio value="group">分组</n-radio>
-          </n-radio-group>
-        </n-form-item>
-        <n-form-item v-if="!editingBaseline && baselineForm.scope === 'device'" label="选择设备">
-          <n-select
-            v-model:value="baselineForm.device_id"
+    <t-dialog
+      v-model:visible="showCreateModal"
+      :header="editingBaseline ? '编辑基线' : '创建基线'"
+      :width="560"
+    >
+      <t-form :data="baselineForm" label-align="left" label-width="90px">
+        <t-form-item v-if="!editingBaseline" label="适用范围">
+          <t-radio-group v-model="baselineForm.scope">
+            <t-radio value="device">设备</t-radio>
+            <t-radio value="group">分组</t-radio>
+          </t-radio-group>
+        </t-form-item>
+        <t-form-item v-if="!editingBaseline && baselineForm.scope === 'device'" label="选择设备">
+          <t-select
+            v-model="baselineForm.device_id"
             :options="deviceOptions"
             placeholder="请选择设备"
             filterable
           />
-        </n-form-item>
-        <n-form-item v-if="!editingBaseline && baselineForm.scope === 'group'" label="选择分组">
-          <n-select
-            v-model:value="baselineForm.group_id"
+        </t-form-item>
+        <t-form-item v-if="!editingBaseline && baselineForm.scope === 'group'" label="选择分组">
+          <t-select
+            v-model="baselineForm.group_id"
             :options="groupSelectOptions"
             placeholder="请选择分组"
           />
-        </n-form-item>
-        <n-form-item label="基线内容">
-          <n-input
-            v-model:value="baselineForm.content"
-            type="textarea"
+        </t-form-item>
+        <t-form-item label="基线内容">
+          <t-textarea
+            v-model="baselineForm.content"
+            :autosize="{ minRows: 8 }"
             placeholder="请输入基线配置内容"
-            :rows="8"
           />
-        </n-form-item>
-      </n-form>
-      <template #action>
-        <n-button @click="closeCreateModal">取消</n-button>
-        <n-button type="primary" :loading="submitting" @click="handleSubmitBaseline">确定</n-button>
+        </t-form-item>
+      </t-form>
+      <template #footer>
+        <t-button variant="outline" @click="closeCreateModal">取消</t-button>
+        <t-button theme="primary" :loading="submitting" @click="handleSubmitBaseline">确定</t-button>
       </template>
-    </n-modal>
+    </t-dialog>
 
-    <n-modal v-model:show="showDeviationModal" preset="dialog" title="偏差详情" style="width: 640px">
-      <n-empty v-if="currentDeviations.length === 0" description="暂无偏差" />
+    <t-dialog v-model:visible="showDeviationModal" header="偏差详情" :width="640">
+      <t-empty v-if="currentDeviations.length === 0" description="暂无偏差" />
       <div v-else>
-        <n-card
+        <t-card
           v-for="deviation in currentDeviations"
           :key="deviation.id"
           size="small"
@@ -67,69 +68,57 @@
         >
           <pre class="diff-content">{{ deviation.diff_content }}</pre>
           <template #footer>
-            <n-text depth="3">检测时间: {{ deviation.detected_at }}</n-text>
+            <span class="diff-time">检测时间: {{ deviation.detected_at }}</span>
           </template>
-        </n-card>
+        </t-card>
       </div>
-      <template #action>
-        <n-button @click="showDeviationModal = false">关闭</n-button>
+      <template #footer>
+        <t-button variant="outline" @click="showDeviationModal = false">关闭</t-button>
       </template>
-    </n-modal>
+    </t-dialog>
 
-    <n-modal v-model:show="showExportModal" preset="dialog" title="导出偏差报告" style="width: 480px">
-      <n-form label-placement="left" label-width="90">
-        <n-form-item label="设备筛选">
-          <n-select
-            v-model:value="exportDeviceId"
+    <t-dialog v-model:visible="showExportModal" header="导出偏差报告" :width="480">
+      <t-form label-align="left" label-width="90px">
+        <t-form-item label="设备筛选">
+          <t-select
+            v-model="exportDeviceId"
             :options="deviceOptions"
             placeholder="全部设备"
             clearable
             filterable
           />
-        </n-form-item>
-        <n-form-item label="基线筛选">
-          <n-select
-            v-model:value="exportBaselineId"
+        </t-form-item>
+        <t-form-item label="基线筛选">
+          <t-select
+            v-model="exportBaselineId"
             :options="baselineOptions"
             placeholder="全部基线"
             clearable
           />
-        </n-form-item>
-      </n-form>
-      <template #action>
-        <n-button @click="showExportModal = false">取消</n-button>
-        <n-button type="primary" :loading="exportLoading" @click="doExportDeviations">导出</n-button>
+        </t-form-item>
+      </t-form>
+      <template #footer>
+        <t-button variant="outline" @click="showExportModal = false">取消</t-button>
+        <t-button theme="primary" :loading="exportLoading" @click="doExportDeviations">导出</t-button>
       </template>
-    </n-modal>
+    </t-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, h } from 'vue'
-import {
-  NCard,
-  NDataTable,
-  NModal,
-  NForm,
-  NFormItem,
-  NInput,
-  NSelect,
-  NRadioGroup,
-  NRadio,
-  NButton,
-  NEmpty,
-  NText,
-  NSpace,
-  useMessage,
-  useDialog,
-} from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { Button, Space, DialogPlugin, MessagePlugin, type PrimaryTableCol } from 'tdesign-vue-next'
 import { getDevices, getGroups } from '@/api/device'
-import { getBaselines, createBaseline, updateBaseline, deleteBaseline, getDeviations, exportDeviations } from '@/api/baseline'
+import {
+  getBaselines,
+  createBaseline,
+  updateBaseline,
+  deleteBaseline,
+  getDeviations,
+  exportDeviations,
+} from '@/api/baseline'
 import type { Baseline, Deviation, Device, Group } from '@/types'
 
-const message = useMessage()
-const dialog = useDialog()
 const loading = ref(false)
 const submitting = ref(false)
 const exportLoading = ref(false)
@@ -156,16 +145,22 @@ const baselineOptions = computed(() =>
       label = groupMap.value[b.group_id!] || `分组#${b.group_id}`
     }
     return { label: `${label} (ID: ${b.id})`, value: b.id }
-  })
+  }),
 )
 
 const baselinePagination = reactive({
   page: 1,
   pageSize: 20,
   itemCount: 0,
-  showSizePicker: true,
-  pageSizes: [10, 20, 50],
 })
+
+const tablePagination = computed(() => ({
+  current: baselinePagination.page,
+  pageSize: baselinePagination.pageSize,
+  total: baselinePagination.itemCount,
+  showPageSize: true,
+  pageSizeOptions: [10, 20, 50],
+}))
 
 const baselineForm = reactive({
   scope: 'device' as 'device' | 'group',
@@ -174,12 +169,12 @@ const baselineForm = reactive({
   content: '',
 })
 
-const baselineColumns: DataTableColumns<Baseline> = [
+const baselineColumns: PrimaryTableCol<Baseline>[] = [
   {
     title: '设备/分组名称',
-    key: 'name',
+    colKey: 'name',
     width: 160,
-    render: (row) => {
+    cell: (_h, { row }) => {
       if (row.scope === 'device') {
         return deviceMap.value[row.device_id!] || `设备#${row.device_id}`
       }
@@ -188,36 +183,40 @@ const baselineColumns: DataTableColumns<Baseline> = [
   },
   {
     title: '适用范围',
-    key: 'scope',
+    colKey: 'scope',
     width: 100,
-    render: (row) => (row.scope === 'device' ? '设备' : '分组'),
+    cell: (_h, { row }) => (row.scope === 'device' ? '设备' : '分组'),
   },
-  { title: '创建时间', key: 'created_at', width: 170 },
-  { title: '更新时间', key: 'updated_at', width: 170 },
+  { title: '创建时间', colKey: 'created_at', width: 170 },
+  { title: '更新时间', colKey: 'updated_at', width: 170 },
   {
     title: '操作',
-    key: 'actions',
+    colKey: 'actions',
     width: 220,
-    render: (row) =>
-      h(NSpace, { size: 'small' }, {
-        default: () => [
-          h(
-            NButton,
-            { size: 'small', onClick: () => handleViewDeviation(row.id) },
-            { default: () => '偏差' },
-          ),
-          h(
-            NButton,
-            { size: 'small', type: 'primary', onClick: () => openEditModal(row) },
-            { default: () => '编辑' },
-          ),
-          h(
-            NButton,
-            { size: 'small', type: 'error', onClick: () => handleDelete(row) },
-            { default: () => '删除' },
-          ),
-        ],
-      }),
+    cell: (h, { row }) =>
+      h(
+        Space,
+        { size: 'small' },
+        {
+          default: () => [
+            h(
+              Button,
+              { size: 'small', onClick: () => handleViewDeviation(row.id) },
+              { default: () => '偏差' },
+            ),
+            h(
+              Button,
+              { size: 'small', theme: 'primary', onClick: () => openEditModal(row) },
+              { default: () => '编辑' },
+            ),
+            h(
+              Button,
+              { size: 'small', theme: 'danger', onClick: () => handleDelete(row) },
+              { default: () => '删除' },
+            ),
+          ],
+        },
+      ),
   },
 ]
 
@@ -231,7 +230,7 @@ async function fetchBaselines() {
     baselines.value = res.data.items
     baselinePagination.itemCount = res.data.total
   } catch {
-    message.error('获取基线列表失败')
+    MessagePlugin.error('获取基线列表失败')
   } finally {
     loading.value = false
   }
@@ -259,18 +258,17 @@ async function fetchOptions() {
       groupMap.value[g.id] = g.name
     }
   } catch {
-    message.error('获取设备/分组选项失败')
+    MessagePlugin.error('获取设备/分组选项失败')
   }
 }
 
-function handleBaselinePageChange(page: number) {
-  baselinePagination.page = page
-  fetchBaselines()
-}
-
-function handleBaselinePageSizeChange(pageSize: number) {
-  baselinePagination.pageSize = pageSize
-  baselinePagination.page = 1
+function handleBaselinePageChange(pageInfo: { current: number; pageSize: number }) {
+  if (pageInfo.pageSize && pageInfo.pageSize !== baselinePagination.pageSize) {
+    baselinePagination.pageSize = pageInfo.pageSize
+    baselinePagination.page = 1
+  } else {
+    baselinePagination.page = pageInfo.current
+  }
   fetchBaselines()
 }
 
@@ -299,16 +297,16 @@ function closeCreateModal() {
 
 async function handleSubmitBaseline() {
   if (!baselineForm.content.trim()) {
-    message.warning('请输入基线内容')
+    MessagePlugin.warning('请输入基线内容')
     return
   }
   if (!editingBaseline.value) {
     if (baselineForm.scope === 'device' && !baselineForm.device_id) {
-      message.warning('请选择设备')
+      MessagePlugin.warning('请选择设备')
       return
     }
     if (baselineForm.scope === 'group' && !baselineForm.group_id) {
-      message.warning('请选择分组')
+      MessagePlugin.warning('请选择分组')
       return
     }
   }
@@ -317,34 +315,35 @@ async function handleSubmitBaseline() {
   try {
     if (editingBaseline.value) {
       await updateBaseline(editingBaseline.value.id, { content: baselineForm.content })
-      message.success('基线更新成功')
+      MessagePlugin.success('基线更新成功')
     } else {
       await createBaseline(baselineForm)
-      message.success('基线创建成功')
+      MessagePlugin.success('基线创建成功')
     }
     showCreateModal.value = false
     editingBaseline.value = null
     fetchBaselines()
   } catch {
-    message.error(editingBaseline.value ? '基线更新失败' : '基线创建失败')
+    MessagePlugin.error(editingBaseline.value ? '基线更新失败' : '基线创建失败')
   } finally {
     submitting.value = false
   }
 }
 
 function handleDelete(baseline: Baseline) {
-  dialog.warning({
-    title: '确认删除',
-    content: `确定要删除该基线吗？`,
-    positiveText: '删除',
-    negativeText: '取消',
-    onPositiveClick: async () => {
+  DialogPlugin.confirm({
+    header: '确认删除',
+    body: '确定要删除该基线吗？',
+    theme: 'warning',
+    confirmBtn: '删除',
+    cancelBtn: '取消',
+    onConfirm: async () => {
       try {
         await deleteBaseline(baseline.id)
-        message.success('基线删除成功')
+        MessagePlugin.success('基线删除成功')
         fetchBaselines()
       } catch {
-        message.error('基线删除失败')
+        MessagePlugin.error('基线删除失败')
       }
     },
   })
@@ -356,7 +355,7 @@ async function handleViewDeviation(baselineId: number) {
     currentDeviations.value = res.data.items
     showDeviationModal.value = true
   } catch {
-    message.error('获取偏差信息失败')
+    MessagePlugin.error('获取偏差信息失败')
   }
 }
 
@@ -383,10 +382,10 @@ async function doExportDeviations() {
     a.download = 'deviations.csv'
     a.click()
     window.URL.revokeObjectURL(url)
-    message.success('导出成功')
+    MessagePlugin.success('导出成功')
     showExportModal.value = false
   } catch {
-    message.error('导出偏差报告失败')
+    MessagePlugin.error('导出偏差报告失败')
   } finally {
     exportLoading.value = false
   }
@@ -410,5 +409,10 @@ onMounted(() => {
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+.diff-time {
+  color: var(--td-text-color-placeholder);
+  font-size: 12px;
 }
 </style>

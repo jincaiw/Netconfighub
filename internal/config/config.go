@@ -1,11 +1,15 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/netconfighub/netconfighub/internal/notifier"
 	"github.com/netconfighub/netconfighub/internal/sanitizer"
@@ -28,6 +32,7 @@ type ServerConfig struct {
 	JWTSecret      string     `yaml:"jwt_secret"`
 	JWTExpireHours int        `yaml:"jwt_expire_hours"`
 	EncryptionKey  string     `yaml:"encryption_key"`
+	TrustedProxies []string   `yaml:"trusted_proxies"`
 	TLS            TLSConfig  `yaml:"tls"`
 	CORS           CORSConfig `yaml:"cors"`
 }
@@ -46,9 +51,12 @@ type CORSConfig struct {
 }
 
 type DatabaseConfig struct {
-	Driver     string `yaml:"driver"`
-	SQLitePath string `yaml:"sqlite_path"`
-	MySQLDSN   string `yaml:"mysql_dsn"`
+	Driver          string `yaml:"driver"`
+	SQLitePath      string `yaml:"sqlite_path"`
+	MySQLDSN        string `yaml:"mysql_dsn"`
+	MaxOpenConns    int    `yaml:"max_open_conns"`
+	MaxIdleConns    int    `yaml:"max_idle_conns"`
+	ConnMaxLifetime string `yaml:"conn_max_lifetime"`
 }
 
 type GitConfig struct {
@@ -111,7 +119,13 @@ func applyDefaults(cfg *Config) {
 		cfg.Server.Host = "0.0.0.0"
 	}
 	if cfg.Server.JWTSecret == "" {
-		cfg.Server.JWTSecret = "change-me-in-production"
+		if isProductionEnv() {
+			// Keep the known-bad literal so ValidateProduction still rejects it.
+			cfg.Server.JWTSecret = "change-me-in-production"
+		} else {
+			cfg.Server.JWTSecret = randomSecret()
+			log.Println("警告: 未配置 jwt_secret，已生成随机密钥（仅本次启动有效）")
+		}
 	}
 	if cfg.Server.Port == 0 {
 		cfg.Server.Port = 8080
@@ -120,7 +134,17 @@ func applyDefaults(cfg *Config) {
 		cfg.Server.JWTExpireHours = 24
 	}
 	if cfg.Server.EncryptionKey == "" {
-		cfg.Server.EncryptionKey = "netconfighub-default-enc-key-32byte"
+		if isProductionEnv() {
+			cfg.Server.EncryptionKey = "netconfighub-default-enc-key-32byte"
+		} else {
+			cfg.Server.EncryptionKey = randomSecret()
+			log.Println("警告: 未配置 encryption_key，已生成随机密钥（仅本次启动有效）")
+		}
+	}
+	if len(cfg.Server.TrustedProxies) == 0 {
+		// Gin only interprets X-Forwarded-* from these CIDRs, preventing a
+		// spoofed forwarded IP from bypassing rate limits.
+		cfg.Server.TrustedProxies = []string{"127.0.0.1", "::1"}
 	}
 	if len(cfg.Server.CORS.AllowedOrigins) == 0 {
 		cfg.Server.CORS.AllowedOrigins = []string{"*"}
@@ -139,6 +163,20 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Database.SQLitePath == "" {
 		cfg.Database.SQLitePath = "./data/netconfighub.db"
+	}
+	if cfg.Database.MaxOpenConns == 0 {
+		// SQLite serialises writers; a single connection avoids lock contention.
+		if cfg.Database.Driver == "sqlite" {
+			cfg.Database.MaxOpenConns = 1
+		} else {
+			cfg.Database.MaxOpenConns = 10
+		}
+	}
+	if cfg.Database.MaxIdleConns == 0 {
+		cfg.Database.MaxIdleConns = cfg.Database.MaxOpenConns
+	}
+	if cfg.Database.ConnMaxLifetime == "" {
+		cfg.Database.ConnMaxLifetime = "30m"
 	}
 	if cfg.Git.RepoPath == "" {
 		cfg.Git.RepoPath = "./data/configs"
@@ -203,6 +241,21 @@ func applyEnvironment(cfg *Config) error {
 	return nil
 }
 
+func isProductionEnv() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("NCH_ENV")), "production")
+}
+
+// randomSecret returns a 32-byte cryptographically random hex string.
+func randomSecret() string {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		// crypto/rand failure is fatal in practice; keep a long unpredictable
+		// fallback rather than a well-known literal.
+		return hex.EncodeToString([]byte(fmt.Sprintf("%d-%d", os.Getpid(), time.Now().UnixNano())))
+	}
+	return hex.EncodeToString(buf)
+}
+
 func splitCSV(value string) []string {
 	parts := strings.Split(value, ",")
 	result := make([]string, 0, len(parts))
@@ -215,7 +268,7 @@ func splitCSV(value string) []string {
 }
 
 func ValidateProduction(cfg *Config) error {
-	if !strings.EqualFold(strings.TrimSpace(os.Getenv("NCH_ENV")), "production") {
+	if !isProductionEnv() {
 		return nil
 	}
 

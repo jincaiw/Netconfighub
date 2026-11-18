@@ -2,10 +2,13 @@ import { Page, request } from '@playwright/test'
 
 const API_BASE = 'http://127.0.0.1:18080/api/v1'
 
+// Injected by playwright.config.ts into both the Go webServer and test workers.
+const ADMIN_PASSWORD = process.env.NCH_ADMIN_PASSWORD || 'admin'
+
 let cachedToken: string | null = null
 let cachedPassword = ''
 
-export async function login(page: Page, username = 'admin', password = 'admin') {
+export async function login(page: Page, username = 'admin', password = ADMIN_PASSWORD) {
   await page.goto('/login')
   await page.locator('input').first().fill(username)
   await page.locator('input[type="password"]').fill(password)
@@ -13,7 +16,7 @@ export async function login(page: Page, username = 'admin', password = 'admin') 
   await page.waitForURL('**/dashboard**', { timeout: 10000 })
 }
 
-export async function getAuthToken(username = 'admin', password = 'admin'): Promise<string> {
+export async function getAuthToken(username = 'admin', password = ADMIN_PASSWORD): Promise<string> {
   if (cachedToken && cachedPassword === password) {
     return cachedToken
   }

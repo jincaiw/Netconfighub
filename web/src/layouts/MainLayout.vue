@@ -1,63 +1,52 @@
 <template>
-  <n-layout has-sider style="height: 100vh">
-    <n-layout-sider
-      class="desktop-sider"
-      bordered
-      inverted
-      collapse-mode="width"
-      :collapsed-width="64"
-      :width="220"
-      :collapsed="appStore.sidebarCollapsed"
-      show-trigger
-      @collapse="appStore.sidebarCollapsed = true"
-      @expand="appStore.sidebarCollapsed = false"
-    >
-      <div class="sider-logo" @click="router.push('/dashboard')">
-        <n-icon size="28" :component="PulseOutline" class="logo-icon" />
+  <t-layout class="app-layout">
+    <t-aside class="desktop-sider" :style="{ width: appStore.sidebarCollapsed ? '64px' : '220px' }">
+      <div class="sider-logo" @click="goHome">
+        <ActivityIcon size="28px" class="logo-icon" />
         <span v-if="!appStore.sidebarCollapsed" class="logo-text">NetConfigHub</span>
         <span v-else class="logo-text-short">NCH</span>
       </div>
       <AppSidebar :collapsed="appStore.sidebarCollapsed" />
-    </n-layout-sider>
-    <n-drawer v-model:show="appStore.mobileSidebarOpen" placement="left" :width="280">
-      <n-drawer-content
-        body-content-style="padding: 0; background: #071a33"
-        :native-scrollbar="false"
-      >
-        <div class="sider-logo mobile-logo" @click="goHome">
-          <n-icon size="28" :component="PulseOutline" class="logo-icon" />
-          <span class="logo-text">NetConfigHub</span>
-        </div>
-        <AppSidebar :collapsed="false" @click="appStore.mobileSidebarOpen = false" />
-      </n-drawer-content>
-    </n-drawer>
-    <n-layout>
-      <n-layout-header bordered>
+      <t-button variant="text" shape="square" class="collapse-btn" @click="appStore.toggleSidebar">
+        <template #icon>
+          <MenuUnfoldIcon v-if="appStore.sidebarCollapsed" />
+          <MenuFoldIcon v-else />
+        </template>
+      </t-button>
+    </t-aside>
+
+    <t-drawer
+      v-model:visible="appStore.mobileSidebarOpen"
+      placement="left"
+      :width="280"
+      :header="false"
+      :footer="false"
+    >
+      <div class="sider-logo mobile-logo" @click="goHome">
+        <ActivityIcon size="28px" class="logo-icon" />
+        <span class="logo-text">NetConfigHub</span>
+      </div>
+      <AppSidebar :collapsed="false" @navigate="appStore.mobileSidebarOpen = false" />
+    </t-drawer>
+
+    <t-layout class="main-layout">
+      <t-header class="header-wrap">
         <AppHeader />
-      </n-layout-header>
-      <n-layout-content class="main-content">
+      </t-header>
+      <t-content class="main-content">
         <router-view v-slot="{ Component }">
           <transition name="page-fade" mode="out-in">
             <component :is="Component" />
           </transition>
         </router-view>
-      </n-layout-content>
-    </n-layout>
-  </n-layout>
+      </t-content>
+    </t-layout>
+  </t-layout>
 </template>
 
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
-import {
-  NDrawer,
-  NDrawerContent,
-  NIcon,
-  NLayout,
-  NLayoutContent,
-  NLayoutHeader,
-  NLayoutSider,
-} from 'naive-ui'
-import { PulseOutline } from '@vicons/ionicons5'
+import { ActivityIcon, MenuFoldIcon, MenuUnfoldIcon } from 'tdesign-icons-vue-next'
 import { useAppStore } from '@/stores/app'
 import AppSidebar from '@/components/AppSidebar.vue'
 import AppHeader from '@/components/AppHeader.vue'
@@ -72,6 +61,19 @@ function goHome() {
 </script>
 
 <style scoped>
+.app-layout {
+  height: 100vh;
+  height: 100dvh;
+}
+
+.desktop-sider {
+  position: relative;
+  flex-shrink: 0;
+  transition: width 0.2s ease;
+  border-right: 1px solid var(--td-component-stroke);
+  background: var(--td-bg-color-container);
+}
+
 .sider-logo {
   height: 64px;
   display: flex;
@@ -80,9 +82,8 @@ function goHome() {
   gap: 8px;
   font-size: 18px;
   font-weight: 700;
-  color: #f8fafc;
-  background: #071a33;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--td-text-color-anti);
+  background: var(--td-brand-color);
   cursor: pointer;
   user-select: none;
 }
@@ -104,10 +105,32 @@ function goHome() {
   padding: 0 22px;
 }
 
+.collapse-btn {
+  position: absolute;
+  left: 0;
+  bottom: 12px;
+  width: 100%;
+}
+
+.header-wrap {
+  height: 64px;
+  line-height: normal;
+  padding: 0;
+  border-bottom: 1px solid var(--td-component-stroke);
+  background: var(--td-bg-color-container);
+}
+
+.main-layout {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
 .main-content {
   min-width: 0;
   padding: 28px 30px 36px;
-  background: #f4f7fb;
+  background: var(--td-bg-color-page);
+  overflow: auto;
 }
 
 @media (max-width: 768px) {

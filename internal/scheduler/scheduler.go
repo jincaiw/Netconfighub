@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/netconfighub/netconfighub/internal/apperr"
 	"github.com/netconfighub/netconfighub/internal/baseline"
 	"github.com/netconfighub/netconfighub/internal/collector"
 	"github.com/netconfighub/netconfighub/internal/config"
@@ -20,7 +22,6 @@ import (
 	"github.com/netconfighub/netconfighub/internal/repository"
 	"github.com/netconfighub/netconfighub/internal/service"
 	"github.com/robfig/cron/v3"
-	"gorm.io/gorm"
 )
 
 type RetryConfig struct {
@@ -30,7 +31,6 @@ type RetryConfig struct {
 
 type Scheduler struct {
 	cron           *cron.Cron
-	db             *gorm.DB
 	cfg            *config.SchedulerConfig
 	deviceRepo     repository.DeviceRepository
 	backupTaskRepo repository.BackupTaskRepository
@@ -45,6 +45,8 @@ type Scheduler struct {
 	hookService    service.HookService
 	workerPoolSize int
 	taskQueue      chan uint
+	stopCh         chan struct{}
+	stopOnce       sync.Once
 	wg             sync.WaitGroup
 	cancel         context.CancelFunc
 	encryptionKey  string
@@ -53,22 +55,26 @@ type Scheduler struct {
 	taskTimeout    time.Duration
 }
 
-func NewScheduler(
-	db *gorm.DB,
-	cfg *config.SchedulerConfig,
-	deviceRepo repository.DeviceRepository,
-	backupTaskRepo repository.BackupTaskRepository,
-	baselineRepo repository.BaselineRepository,
-	deviationRepo repository.DeviationRepository,
-	c *collector.UnifiedCollector,
-	gs *gitstore.Store,
-	be baseline.Engine,
-	alertService service.AlertService,
-	ntf notifier.Notifier,
-	encryptionKey string,
-	hookService service.HookService,
-	auditService service.AuditService,
-) *Scheduler {
+// SchedulerDeps groups the scheduler's dependencies into a single parameter
+// object; the previously unused db dependency is removed.
+type SchedulerDeps struct {
+	Cfg            *config.SchedulerConfig
+	DeviceRepo     repository.DeviceRepository
+	BackupTaskRepo repository.BackupTaskRepository
+	BaselineRepo   repository.BaselineRepository
+	DeviationRepo  repository.DeviationRepository
+	Collector      *collector.UnifiedCollector
+	GitStore       *gitstore.Store
+	BaselineEngine baseline.Engine
+	AlertService   service.AlertService
+	Notifier       notifier.Notifier
+	EncryptionKey  string
+	HookService    service.HookService
+	AuditService   service.AuditService
+}
+
+func NewScheduler(deps SchedulerDeps) *Scheduler {
+	cfg := deps.Cfg
 	maxRetries := cfg.MaxRetries
 	if maxRetries == 0 {
 		maxRetries = 3
@@ -84,22 +90,22 @@ func NewScheduler(
 
 	return &Scheduler{
 		cron:           cron.New(cron.WithSeconds()),
-		db:             db,
 		cfg:            cfg,
-		deviceRepo:     deviceRepo,
-		backupTaskRepo: backupTaskRepo,
-		baselineRepo:   baselineRepo,
-		deviationRepo:  deviationRepo,
-		collector:      c,
-		gitStore:       gs,
-		baselineEngine: be,
-		alertService:   alertService,
-		auditService:   auditService,
-		notifier:       ntf,
-		hookService:    hookService,
+		deviceRepo:     deps.DeviceRepo,
+		backupTaskRepo: deps.BackupTaskRepo,
+		baselineRepo:   deps.BaselineRepo,
+		deviationRepo:  deps.DeviationRepo,
+		collector:      deps.Collector,
+		gitStore:       deps.GitStore,
+		baselineEngine: deps.BaselineEngine,
+		alertService:   deps.AlertService,
+		auditService:   deps.AuditService,
+		notifier:       deps.Notifier,
+		hookService:    deps.HookService,
 		workerPoolSize: cfg.WorkerPoolSize,
 		taskQueue:      make(chan uint, cfg.WorkerPoolSize*2),
-		encryptionKey:  encryptionKey,
+		stopCh:         make(chan struct{}),
+		encryptionKey:  deps.EncryptionKey,
 		maxRetries:     maxRetries,
 		retryDelay:     retryDelay,
 		taskTimeout:    taskTimeout,
@@ -130,17 +136,30 @@ func (s *Scheduler) Start() error {
 	return nil
 }
 
+// Stop signals all workers and the retry loop to exit and waits for them.
+// The task queue is deliberately NOT closed: closing a channel while other
+// goroutines can still send on it is a panic hazard. stopCh is closed once,
+// so Stop is idempotent and safe to call concurrently with SubmitDevice.
 func (s *Scheduler) Stop() {
-	if s.cancel != nil {
-		s.cancel()
-	}
+	s.stopOnce.Do(func() {
+		if s.cancel != nil {
+			s.cancel()
+		}
+		close(s.stopCh)
+	})
 	s.cron.Stop()
-	close(s.taskQueue)
 	s.wg.Wait()
 }
 
 func (s *Scheduler) SubmitDevice(deviceID uint) error {
 	select {
+	case <-s.stopCh:
+		return fmt.Errorf("调度器已停止")
+	default:
+	}
+	select {
+	case <-s.stopCh:
+		return fmt.Errorf("调度器已停止")
 	case s.taskQueue <- deviceID:
 		return nil
 	default:
@@ -164,6 +183,13 @@ func (s *Scheduler) SubmitGroup(groupID uint) error {
 			continue
 		}
 		select {
+		case <-s.stopCh:
+			return fmt.Errorf("调度器已停止")
+		default:
+		}
+		select {
+		case <-s.stopCh:
+			return fmt.Errorf("调度器已停止")
 		case s.taskQueue <- device.ID:
 		default:
 			log.Printf("队列已满，跳过设备 %d", device.ID)
@@ -176,6 +202,8 @@ func (s *Scheduler) worker(ctx context.Context, id int) {
 	defer s.wg.Done()
 	for {
 		select {
+		case <-s.stopCh:
+			return
 		case <-ctx.Done():
 			return
 		case deviceID, ok := <-s.taskQueue:
@@ -202,9 +230,9 @@ func (s *Scheduler) executeBackup(ctx context.Context, deviceID uint) {
 	if !device.Enabled {
 		now := time.Now()
 		task := &model.BackupTask{
-			DeviceID:  deviceID,
-			Status:    model.BackupStatusSkipped,
-			StartedAt: &now,
+			DeviceID:   deviceID,
+			Status:     model.BackupStatusSkipped,
+			StartedAt:  &now,
 			MaxRetries: s.maxRetries,
 		}
 		task.FinishedAt = &now
@@ -475,7 +503,28 @@ func (s *Scheduler) handleTimeout(ctx context.Context, task *model.BackupTask, d
 	}
 }
 
+// classifyError maps an error to the stable error_type string persisted in the
+// backup task and surfaced in alerts. Typed sentinel errors are matched first;
+// the legacy text matching is retained as a fallback for untyped errors so the
+// mapping (and existing behaviour) is preserved byte-for-byte.
 func classifyError(err error) string {
+	switch {
+	case errors.Is(err, apperr.ErrConnectTimeout):
+		return "connect_timeout"
+	case errors.Is(err, apperr.ErrAuthFailed):
+		return "auth_failed"
+	case errors.Is(err, apperr.ErrPromptTimeout):
+		return "prompt_timeout"
+	case errors.Is(err, apperr.ErrCommandTimeout):
+		return "command_timeout"
+	case errors.Is(err, apperr.ErrModelNotFound):
+		return "model_not_found"
+	case errors.Is(err, apperr.ErrGitCommit):
+		return "git_commit_failed"
+	case errors.Is(err, apperr.ErrConfigEmpty):
+		return "config_empty"
+	}
+
 	msg := err.Error()
 	switch {
 	case strings.Contains(msg, "连接超时") || strings.Contains(msg, "连接失败"):
@@ -500,6 +549,8 @@ func classifyError(err error) string {
 func (s *Scheduler) processRetryingTasks(ctx context.Context) {
 	for {
 		select {
+		case <-s.stopCh:
+			return
 		case <-ctx.Done():
 			return
 		case <-time.After(s.retryDelay):
@@ -513,6 +564,8 @@ func (s *Scheduler) processRetryingTasks(ctx context.Context) {
 			}
 			for _, task := range tasks {
 				select {
+				case <-s.stopCh:
+					return
 				case <-ctx.Done():
 					return
 				case s.taskQueue <- task.DeviceID:
@@ -567,6 +620,8 @@ func (s *Scheduler) scheduleAllDevices(ctx context.Context) {
 			}
 		}
 		select {
+		case <-s.stopCh:
+			return
 		case <-ctx.Done():
 			return
 		case s.taskQueue <- device.ID:

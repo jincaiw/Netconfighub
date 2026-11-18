@@ -104,8 +104,14 @@ func TestDefaultAdminCredentialsFallback(t *testing.T) {
 	t.Setenv("NCH_ADMIN_USERNAME", "")
 	t.Setenv("NCH_ADMIN_PASSWORD", "")
 
-	username, password, usingDefault := defaultAdminCredentials()
-	if username != "admin" || password != "admin" || !usingDefault {
-		t.Fatalf("got username=%q password=%q usingDefault=%v", username, password, usingDefault)
+	username, password, generated := defaultAdminCredentials()
+	if username != "admin" {
+		t.Fatalf("username = %q, want admin", username)
+	}
+	if password == "" || password == "admin" {
+		t.Fatalf("默认口令不得为空或字面量 admin，实际 %q", password)
+	}
+	if !generated {
+		t.Fatal("generated should be true when password env is unset")
 	}
 }

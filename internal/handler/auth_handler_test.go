@@ -59,7 +59,21 @@ func setupTestRouter(db *gorm.DB) *gin.Engine {
 	alertSvc := service.NewAlertService(alertRepo)
 
 	loginLimiter := middleware.NewRateLimiter(10, time.Minute)
-	router := NewRouter(adminSvc, tokenSvc, authSvc, deviceSvc, groupSvc, backupSvc, baselineSvc, deviationSvc, alertSvc, nil, nil, nil, &mockScheduler{}, "test-jwt-secret", tokenRepo, loginLimiter)
+	backupSvc.SetScheduler(&mockScheduler{})
+	router := NewRouter(RouterDeps{
+		AdminService:     adminSvc,
+		TokenService:     tokenSvc,
+		AuthService:      authSvc,
+		DeviceService:    deviceSvc,
+		GroupService:     groupSvc,
+		BackupService:    backupSvc,
+		BaselineService:  baselineSvc,
+		DeviationService: deviationSvc,
+		AlertService:     alertSvc,
+		TokenAuth:        middleware.APITokenAuth(tokenRepo),
+		JWTSecret:        "test-jwt-secret",
+		LoginRateLimiter: loginLimiter,
+	})
 
 	engine := gin.New()
 	router.Setup(engine)

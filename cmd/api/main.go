@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -104,7 +106,21 @@ func main() {
 	configService := service.NewConfigService(configRepo)
 	auditService := service.NewAuditService(auditLogRepo)
 
-	sched := scheduler.NewScheduler(db, &cfg.Scheduler, deviceRepo, backupTaskRepo, baselineRepo, deviationRepo, c, gitStore, baselineEngine, alertService, ntf, cfg.Server.EncryptionKey, hookService, auditService)
+	sched := scheduler.NewScheduler(scheduler.SchedulerDeps{
+		Cfg:            &cfg.Scheduler,
+		DeviceRepo:     deviceRepo,
+		BackupTaskRepo: backupTaskRepo,
+		BaselineRepo:   baselineRepo,
+		DeviationRepo:  deviationRepo,
+		Collector:      c,
+		GitStore:       gitStore,
+		BaselineEngine: baselineEngine,
+		AlertService:   alertService,
+		Notifier:       ntf,
+		EncryptionKey:  cfg.Server.EncryptionKey,
+		HookService:    hookService,
+		AuditService:   auditService,
+	})
 
 	adminService := service.NewAdminService(adminRepo)
 	tokenService := service.NewAPITokenService(tokenRepo)
@@ -112,6 +128,7 @@ func main() {
 	deviceService := service.NewDeviceService(deviceRepo, groupRepo, backupTaskRepo, gitStore, deviationRepo, baselineEngine, san, cfg.Server.EncryptionKey)
 	groupService := service.NewGroupService(groupRepo, deviceRepo, backupTaskRepo)
 	backupService := service.NewBackupService(backupTaskRepo, deviceRepo, gitStore, san)
+	backupService.SetScheduler(sched)
 	baselineService := service.NewBaselineService(baselineRepo, deviceRepo, deviationRepo)
 	deviationService := service.NewDeviationService(deviationRepo)
 
@@ -127,13 +144,33 @@ func main() {
 	}
 	engine := gin.Default()
 
+	if err := engine.SetTrustedProxies(cfg.Server.TrustedProxies); err != nil {
+		log.Fatalf("设置可信代理失败: %v", err)
+	}
+	engine.Use(securityHeaders(cfg.Server.TLS.Enabled))
 	engine.Use(corsMiddleware(cfg.Server.CORS))
 
 	rateLimiter := middleware.NewRateLimiter(5000, time.Minute)
 	engine.Use(rateLimiter.Middleware())
 
 	loginRateLimiter := middleware.NewRateLimiter(300, time.Minute)
-	router := handler.NewRouter(adminService, tokenService, authService, deviceService, groupService, backupService, baselineService, deviationService, alertService, hookService, configService, auditService, sched, cfg.Server.JWTSecret, tokenRepo, loginRateLimiter)
+	router := handler.NewRouter(handler.RouterDeps{
+		AdminService:     adminService,
+		TokenService:     tokenService,
+		AuthService:      authService,
+		DeviceService:    deviceService,
+		GroupService:     groupService,
+		BackupService:    backupService,
+		BaselineService:  baselineService,
+		DeviationService: deviationService,
+		AlertService:     alertService,
+		HookService:      hookService,
+		ConfigService:    configService,
+		AuditService:     auditService,
+		TokenAuth:        middleware.APITokenAuth(tokenRepo),
+		JWTSecret:        cfg.Server.JWTSecret,
+		LoginRateLimiter: loginRateLimiter,
+	})
 	router.Setup(engine)
 
 	gitStore.Start()
@@ -168,6 +205,10 @@ func main() {
 
 	sched.Stop()
 	log.Println("调度器已停止")
+
+	rateLimiter.Stop()
+	loginRateLimiter.Stop()
+	log.Println("限流器已停止")
 
 	gitStore.Stop()
 	log.Println("Git 存储已停止")
@@ -225,6 +266,22 @@ func setupFrontend(engine *gin.Engine) {
 	})
 }
 
+// securityHeaders adds baseline defensive response headers. The CSP keeps the
+// existing single-origin Vue/TDesign assets working (including injected styles).
+func securityHeaders(tlsEnabled bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		h := c.Writer.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Referrer-Policy", "no-referrer")
+		h.Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
+		if tlsEnabled {
+			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		c.Next()
+	}
+}
+
 func corsMiddleware(corsCfg config.CORSConfig) gin.HandlerFunc {
 	allowedOrigins := make(map[string]struct{}, len(corsCfg.AllowedOrigins))
 	allowWildcard := false
@@ -239,6 +296,9 @@ func corsMiddleware(corsCfg config.CORSConfig) gin.HandlerFunc {
 		allowedOrigins[origin] = struct{}{}
 	}
 	methods := strings.Join(corsCfg.AllowedMethods, ", ")
+	if allowWildcard && !strings.EqualFold(strings.TrimSpace(os.Getenv("NCH_ENV")), "production") {
+		log.Println("警告: CORS 允许 *（仅限非生产环境；生产环境请在配置中限制来源）")
+	}
 	headers := strings.Join(corsCfg.AllowedHeaders, ", ")
 	maxAge := fmt.Sprintf("%d", corsCfg.MaxAgeSeconds)
 
@@ -342,6 +402,18 @@ func initDatabase(cfg *config.Config) (*gorm.DB, error) {
 		return nil, fmt.Errorf("连接数据库失败: %w", err)
 	}
 
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("获取底层数据库连接失败: %w", err)
+	}
+	sqlDB.SetMaxOpenConns(cfg.Database.MaxOpenConns)
+	sqlDB.SetMaxIdleConns(cfg.Database.MaxIdleConns)
+	lifetime, err := time.ParseDuration(cfg.Database.ConnMaxLifetime)
+	if err != nil || lifetime <= 0 {
+		lifetime = 30 * time.Minute
+	}
+	sqlDB.SetConnMaxLifetime(lifetime)
+
 	return db, nil
 }
 
@@ -361,7 +433,14 @@ func gormLogLevel(level string) logger.LogLevel {
 }
 
 func autoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(
+	// Default to true so first boot and E2E still create tables. Production is
+	// advised to set NCH_AUTO_MIGRATE=false and run a reviewed migration.
+	if raw := strings.TrimSpace(os.Getenv("NCH_AUTO_MIGRATE")); strings.EqualFold(raw, "false") || raw == "0" {
+		log.Println("数据库自动迁移已跳过（NCH_AUTO_MIGRATE=false）")
+		return nil
+	}
+	log.Println("执行数据库自动迁移 ...")
+	if err := db.AutoMigrate(
 		&model.Admin{},
 		&model.APIToken{},
 		&model.Group{},
@@ -373,11 +452,15 @@ func autoMigrate(db *gorm.DB) error {
 		&model.Hook{},
 		&model.SystemConfig{},
 		&model.AuditLog{},
-	)
+	); err != nil {
+		return err
+	}
+	log.Println("数据库自动迁移完成")
+	return nil
 }
 
 func initDefaultAdmin(authService service.AuthService) {
-	username, password, usingDefault := defaultAdminCredentials()
+	username, password, generated := defaultAdminCredentials()
 	admin, err := authService.InitAdmin(nil, username, password)
 	if err != nil {
 		return
@@ -385,9 +468,9 @@ func initDefaultAdmin(authService service.AuthService) {
 	log.Printf("========================================")
 	log.Printf("已创建默认管理员账户")
 	log.Printf("用户名: %s", username)
-	if usingDefault {
-		log.Printf("密码: admin")
-		log.Printf("警告: 正在使用内置默认管理员密码，请立即修改！")
+	if generated {
+		log.Printf("密码: %s（随机生成，仅打印一次，请妥善保存）", password)
+		log.Printf("警告: 未设置 NCH_ADMIN_PASSWORD，已使用随机口令；请立即修改！")
 	} else {
 		log.Printf("密码: 已通过 NCH_ADMIN_PASSWORD 设置")
 	}
@@ -395,15 +478,23 @@ func initDefaultAdmin(authService service.AuthService) {
 	log.Printf("========================================")
 }
 
-func defaultAdminCredentials() (username, password string, usingDefault bool) {
+// defaultAdminCredentials returns the bootstrap admin credentials. When no
+// password is supplied, a strong random password is generated and printed once;
+// the literal "admin" is never used as a fallback.
+func defaultAdminCredentials() (username, password string, generated bool) {
 	username = strings.TrimSpace(os.Getenv("NCH_ADMIN_USERNAME"))
 	password = os.Getenv("NCH_ADMIN_PASSWORD")
 	if username == "" {
 		username = "admin"
 	}
 	if password == "" {
-		password = "admin"
-		usingDefault = true
+		buf := make([]byte, 24)
+		if _, err := rand.Read(buf); err != nil {
+			password = fmt.Sprintf("nch-%d-%d", os.Getpid(), time.Now().UnixNano())
+		} else {
+			password = hex.EncodeToString(buf)
+		}
+		generated = true
 	}
-	return username, password, usingDefault
+	return username, password, generated
 }

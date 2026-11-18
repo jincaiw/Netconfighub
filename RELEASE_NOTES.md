@@ -7,7 +7,12 @@ Production hardening, UI refinement, and reproducible deployment release.
 ### Highlights
 
 - Refined the login, dashboard, navigation, desktop, and mobile layouts.
-- Reduced the largest frontend JavaScript chunk from about 1.03 MB to 165 KB.
+- Split the frontend bundle with on-demand TDesign registration and
+  `manualChunks`: the application entry chunk `index-*.js` measured 8,303 bytes
+  (8.1 KiB, down from ~1.2 MB), with vendor code isolated into separate
+  `tdesign-*.js` (1,024,267 bytes), `echarts-*.js` (511,799 bytes), and
+  `vue-vendor-*.js` chunks. The previous "largest chunk ~165 KB" figure was not
+  reproducible from the shipped `dist` artifacts and has been corrected.
 - Added production startup validation for JWT, encryption, administrator
   password, and CORS settings.
 - Added environment-only configuration for single-file and container
@@ -36,7 +41,7 @@ Observed verification results:
 
 - Go unit/integration tests: passed.
 - Go vet: passed.
-- npm audit: 0 vulnerabilities.
+- npm audit: 48 findings（11 moderate / 37 high），直接依赖 `fixAvailable:false`，需破坏性主版本升级，本任务不升级依赖。
 - Frontend production build: passed.
 - Playwright e2e tests: 39 passed.
 - Comprehensive API smoke test: 83 passed, 0 failed.
@@ -85,7 +90,7 @@ Observed verification results:
 
 - Go unit/integration tests: passed.
 - Go vet: passed.
-- npm audit: 0 vulnerabilities.
+- npm audit: 48 findings（11 moderate / 37 high），直接依赖 `fixAvailable:false`，需破坏性主版本升级，本任务不升级依赖。
 - Frontend production build: passed.
 - Playwright e2e tests: 39 passed.
 - Comprehensive API smoke test: 83 passed, 0 failed.
@@ -147,7 +152,7 @@ Observed verification results:
 
 - Go unit/integration tests: passed.
 - Go vet: passed.
-- npm audit: 0 vulnerabilities.
+- npm audit: 48 findings（11 moderate / 37 high），直接依赖 `fixAvailable:false`，需破坏性主版本升级，本任务不升级依赖。
 - Frontend production build: passed.
 - Backend binary build: passed.
 - Playwright e2e tests: 39 passed.

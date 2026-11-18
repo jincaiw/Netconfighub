@@ -61,7 +61,21 @@ func setupIntegrationRouter(db *gorm.DB) *gin.Engine {
 	alertSvc := service.NewAlertService(alertRepo)
 
 	loginLimiter := middleware.NewRateLimiter(10, time.Minute)
-	router := NewRouter(adminSvc, tokenSvc, authSvc, deviceSvc, groupSvc, backupSvc, baselineSvc, deviationSvc, alertSvc, nil, nil, nil, &mockScheduler{}, "test-jwt-secret", tokenRepo, loginLimiter)
+	backupSvc.SetScheduler(&mockScheduler{})
+	router := NewRouter(RouterDeps{
+		AdminService:     adminSvc,
+		TokenService:     tokenSvc,
+		AuthService:      authSvc,
+		DeviceService:    deviceSvc,
+		GroupService:     groupSvc,
+		BackupService:    backupSvc,
+		BaselineService:  baselineSvc,
+		DeviationService: deviationSvc,
+		AlertService:     alertSvc,
+		TokenAuth:        middleware.APITokenAuth(tokenRepo),
+		JWTSecret:        "test-jwt-secret",
+		LoginRateLimiter: loginLimiter,
+	})
 
 	engine := gin.New()
 	router.Setup(engine)
@@ -291,14 +305,14 @@ func TestGetDeviceConfigNoGitStore(t *testing.T) {
 	_, engine, token := setupIntegrationEnv(t)
 
 	body, _ := json.Marshal(map[string]interface{}{
-		"name":          "config-device",
-		"ip":    "10.0.0.1",
-		"vendor":        "cisco",
-		"model":         "ios",
+		"name":     "config-device",
+		"ip":       "10.0.0.1",
+		"vendor":   "cisco",
+		"model":    "ios",
 		"protocol": "ssh",
-		"port":          22,
-		"username":      "admin",
-		"password":      "secret",
+		"port":     22,
+		"username": "admin",
+		"password": "secret",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -324,14 +338,14 @@ func TestGetDeviceVersionsNoGitStore(t *testing.T) {
 	_, engine, token := setupIntegrationEnv(t)
 
 	body, _ := json.Marshal(map[string]interface{}{
-		"name":          "versions-device",
-		"ip":    "10.0.0.2",
-		"vendor":        "cisco",
-		"model":         "ios",
+		"name":     "versions-device",
+		"ip":       "10.0.0.2",
+		"vendor":   "cisco",
+		"model":    "ios",
 		"protocol": "ssh",
-		"port":          22,
-		"username":      "admin",
-		"password":      "secret",
+		"port":     22,
+		"username": "admin",
+		"password": "secret",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -357,14 +371,14 @@ func TestGetDeviceDeviations(t *testing.T) {
 	_, engine, token := setupIntegrationEnv(t)
 
 	body, _ := json.Marshal(map[string]interface{}{
-		"name":          "deviation-device",
-		"ip":    "10.0.0.3",
-		"vendor":        "cisco",
-		"model":         "ios",
+		"name":     "deviation-device",
+		"ip":       "10.0.0.3",
+		"vendor":   "cisco",
+		"model":    "ios",
 		"protocol": "ssh",
-		"port":          22,
-		"username":      "admin",
-		"password":      "secret",
+		"port":     22,
+		"username": "admin",
+		"password": "secret",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -400,14 +414,14 @@ func TestListFailedDevices(t *testing.T) {
 	db, engine, token := setupIntegrationEnv(t)
 
 	body, _ := json.Marshal(map[string]interface{}{
-		"name":          "failed-device",
-		"ip":    "10.0.0.4",
-		"vendor":        "cisco",
-		"model":         "ios",
+		"name":     "failed-device",
+		"ip":       "10.0.0.4",
+		"vendor":   "cisco",
+		"model":    "ios",
 		"protocol": "ssh",
-		"port":          22,
-		"username":      "admin",
-		"password":      "secret",
+		"port":     22,
+		"username": "admin",
+		"password": "secret",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -530,14 +544,14 @@ func TestAPITokenAccessDeviceConfig(t *testing.T) {
 	jwtToken := loginAndGetToken(t, engine)
 
 	body, _ := json.Marshal(map[string]interface{}{
-		"name":          "ext-config-device",
-		"ip":    "10.0.0.5",
-		"vendor":        "cisco",
-		"model":         "ios",
+		"name":     "ext-config-device",
+		"ip":       "10.0.0.5",
+		"vendor":   "cisco",
+		"model":    "ios",
 		"protocol": "ssh",
-		"port":          22,
-		"username":      "admin",
-		"password":      "secret",
+		"port":     22,
+		"username": "admin",
+		"password": "secret",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
@@ -723,14 +737,14 @@ func TestBaselineDeviceScope(t *testing.T) {
 	db, engine, token := setupIntegrationEnv(t)
 
 	body, _ := json.Marshal(map[string]interface{}{
-		"name":          "baseline-device",
-		"ip":    "10.0.0.10",
-		"vendor":        "cisco",
-		"model":         "ios",
+		"name":     "baseline-device",
+		"ip":       "10.0.0.10",
+		"vendor":   "cisco",
+		"model":    "ios",
 		"protocol": "ssh",
-		"port":          22,
-		"username":      "admin",
-		"password":      "secret",
+		"port":     22,
+		"username": "admin",
+		"password": "secret",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/devices", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")

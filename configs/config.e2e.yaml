@@ -1,9 +1,16 @@
+# SSH 主机密钥校验通过环境变量读取（非 YAML 字段）：
+#   NCH_SSH_KNOWN_HOSTS=<known_hosts 文件路径>  # 默认必须设置，否则 SSH 采集被拒绝
+#   NCH_SSH_ALLOW_INSECURE=true                 # e2e/本地开发可显式跳过校验，生产环境禁止
 server:
   host: "127.0.0.1"
   port: 18080
   jwt_secret: "e2e-test-secret"
   jwt_expire_hours: 24
   encryption_key: "e2e-test-encryption-key-32-bytes!"
+  # 仅这些来源的 X-Forwarded-* 会被信任，默认仅回环；留空使用默认值
+  trusted_proxies:
+    - "127.0.0.1"
+    - "::1"
   tls:
     enabled: false
     cert_file: ""
@@ -27,6 +34,10 @@ database:
   driver: "sqlite"
   sqlite_path: "/tmp/netconfighub-e2e.db"
   mysql_dsn: ""
+  # 连接池：SQLite 默认 1 个写连接；MySQL 默认 10。留空使用安全默认。
+  max_open_conns: 0
+  max_idle_conns: 0
+  conn_max_lifetime: "30m"
 
 git:
   repo_path: "/tmp/netconfighub-e2e-configs"

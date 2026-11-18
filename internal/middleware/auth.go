@@ -4,20 +4,20 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/netconfighub/netconfighub/internal/authclaim"
 	"github.com/netconfighub/netconfighub/internal/repository"
 )
 
-type Claims struct {
-	AdminID  uint   `json:"admin_id"`
-	Username string `json:"username"`
-	jwt.RegisteredClaims
-}
+// Claims is kept as an alias for backwards compatibility; the canonical type
+// now lives in the neutral authclaim package.
+type Claims = authclaim.Claims
 
 func JWTAuth(jwtSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -96,7 +96,9 @@ func APITokenAuth(tokenRepo repository.APITokenRepository) gin.HandlerFunc {
 			return
 		}
 
-		_ = tokenRepo.UpdateLastUsed(c.Request.Context(), apiToken.ID)
+		if err := tokenRepo.UpdateLastUsed(c.Request.Context(), apiToken.ID); err != nil {
+			log.Printf("更新 API Token 最后使用时间失败 [tokenID=%d]: %v", apiToken.ID, err)
+		}
 
 		c.Set("admin_id", apiToken.AdminID)
 		c.Set("auth_type", "api_token")

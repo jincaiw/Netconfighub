@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/netconfighub/netconfighub/internal/apperr"
 	"github.com/netconfighub/netconfighub/internal/baseline"
 	"github.com/netconfighub/netconfighub/internal/crypto"
 	"github.com/netconfighub/netconfighub/internal/gitstore"
@@ -110,7 +111,7 @@ func (s *deviceServiceImpl) Create(ctx context.Context, device *model.Device) (*
 func (s *deviceServiceImpl) GetByID(ctx context.Context, id uint) (*model.Device, error) {
 	device, err := s.deviceRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("设备不存在")
+		return nil, apperr.Wrap(apperr.ErrDeviceNotFound, "设备不存在")
 	}
 	s.maskDeviceCredentials(device)
 	populateDeviceGroupName(device)
@@ -135,7 +136,7 @@ func (s *deviceServiceImpl) Update(ctx context.Context, id uint, device *model.D
 	}
 	existing, err := s.deviceRepo.FindByID(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("设备不存在")
+		return nil, apperr.Wrap(apperr.ErrDeviceNotFound, "设备不存在")
 	}
 	if device.Name != existing.Name {
 		if dup, err := s.deviceRepo.FindByName(ctx, device.Name); err == nil && dup != nil {
@@ -209,7 +210,7 @@ func (s *deviceServiceImpl) Update(ctx context.Context, id uint, device *model.D
 
 func (s *deviceServiceImpl) Delete(ctx context.Context, id uint) error {
 	if _, err := s.deviceRepo.FindByID(ctx, id); err != nil {
-		return fmt.Errorf("设备不存在")
+		return apperr.Wrap(apperr.ErrDeviceNotFound, "设备不存在")
 	}
 	return s.deviceRepo.Delete(ctx, id)
 }
@@ -217,7 +218,7 @@ func (s *deviceServiceImpl) Delete(ctx context.Context, id uint) error {
 func (s *deviceServiceImpl) TriggerBackup(ctx context.Context, deviceID uint) (*model.BackupTask, error) {
 	device, err := s.deviceRepo.FindByID(ctx, deviceID)
 	if err != nil {
-		return nil, fmt.Errorf("设备不存在")
+		return nil, apperr.Wrap(apperr.ErrDeviceNotFound, "设备不存在")
 	}
 	if !device.Enabled {
 		return nil, fmt.Errorf("设备已禁用，无法触发备份")
@@ -241,7 +242,7 @@ func (s *deviceServiceImpl) TriggerBackup(ctx context.Context, deviceID uint) (*
 func (s *deviceServiceImpl) GetDeviceConfig(ctx context.Context, deviceID uint) (string, error) {
 	device, err := s.deviceRepo.FindByID(ctx, deviceID)
 	if err != nil {
-		return "", fmt.Errorf("设备不存在")
+		return "", apperr.Wrap(apperr.ErrDeviceNotFound, "设备不存在")
 	}
 	if s.gitStore == nil {
 		return "", fmt.Errorf("Git 存储未初始化")
@@ -259,7 +260,7 @@ func (s *deviceServiceImpl) GetDeviceConfig(ctx context.Context, deviceID uint) 
 func (s *deviceServiceImpl) GetDeviceVersions(ctx context.Context, deviceID uint, limit int) ([]model.ConfigVersion, error) {
 	device, err := s.deviceRepo.FindByID(ctx, deviceID)
 	if err != nil {
-		return nil, fmt.Errorf("设备不存在")
+		return nil, apperr.Wrap(apperr.ErrDeviceNotFound, "设备不存在")
 	}
 	if s.gitStore == nil {
 		return nil, fmt.Errorf("Git 存储未初始化")
@@ -282,7 +283,7 @@ func (s *deviceServiceImpl) GetDeviceVersions(ctx context.Context, deviceID uint
 
 func (s *deviceServiceImpl) GetDeviceDeviations(ctx context.Context, deviceID uint, offset, limit int) ([]model.Deviation, int64, error) {
 	if _, err := s.deviceRepo.FindByID(ctx, deviceID); err != nil {
-		return nil, 0, fmt.Errorf("设备不存在")
+		return nil, 0, apperr.Wrap(apperr.ErrDeviceNotFound, "设备不存在")
 	}
 	return s.deviationRepo.FindByDeviceID(ctx, deviceID, offset, limit)
 }
@@ -349,7 +350,7 @@ func (s *deviceServiceImpl) GetConfigDiff(ctx context.Context, deviceID, fromHas
 	}
 	device, err := s.deviceRepo.FindByID(ctx, uint(deviceIDInt))
 	if err != nil {
-		return nil, fmt.Errorf("设备不存在")
+		return nil, apperr.Wrap(apperr.ErrDeviceNotFound, "设备不存在")
 	}
 	if s.gitStore == nil {
 		return nil, fmt.Errorf("Git 存储未初始化")
@@ -382,7 +383,7 @@ func (s *deviceServiceImpl) GetLatestDiff(ctx context.Context, deviceID string) 
 	}
 	device, err := s.deviceRepo.FindByID(ctx, uint(deviceIDInt))
 	if err != nil {
-		return nil, fmt.Errorf("设备不存在")
+		return nil, apperr.Wrap(apperr.ErrDeviceNotFound, "设备不存在")
 	}
 	if s.gitStore == nil {
 		return nil, fmt.Errorf("Git 存储未初始化")
@@ -409,6 +410,21 @@ func (s *deviceServiceImpl) ImportDevices(ctx context.Context, csvData []byte) (
 		return nil, fmt.Errorf("CSV 文件为空或缺少数据行")
 	}
 	result := &model.ImportResult{Total: len(records) - 1}
+
+	// Load the group name→ID map once per import instead of once per CSV row.
+	groupByName := make(map[string]uint)
+	var groupLookupErr error
+	if s.groupRepo != nil {
+		groups, err := s.groupRepo.ListAllNames(ctx, 10000)
+		if err != nil {
+			groupLookupErr = err
+		} else {
+			for _, g := range groups {
+				groupByName[g.Name] = g.ID
+			}
+		}
+	}
+
 	for i, record := range records[1:] {
 		row := i + 2
 		if len(record) < 9 {
@@ -459,8 +475,7 @@ func (s *deviceServiceImpl) ImportDevices(ctx context.Context, csvData []byte) (
 		}
 		var groupID *uint
 		if groupName != "" {
-			groups, _, err := s.groupRepo.List(ctx, 0, 1000)
-			if err != nil {
+			if groupLookupErr != nil {
 				result.Failed++
 				result.Errors = append(result.Errors, model.ImportError{
 					Row:    row,
@@ -469,15 +484,9 @@ func (s *deviceServiceImpl) ImportDevices(ctx context.Context, csvData []byte) (
 				})
 				continue
 			}
-			found := false
-			for _, g := range groups {
-				if g.Name == groupName {
-					groupID = &g.ID
-					found = true
-					break
-				}
-			}
-			if !found {
+			if id, found := groupByName[groupName]; found {
+				groupID = &id
+			} else {
 				result.Failed++
 				result.Errors = append(result.Errors, model.ImportError{
 					Row:    row,
@@ -571,7 +580,7 @@ func (s *deviceServiceImpl) ExportDevices(ctx context.Context) ([]byte, error) {
 func (s *deviceServiceImpl) EnableDevice(ctx context.Context, id uint) error {
 	device, err := s.deviceRepo.FindByID(ctx, id)
 	if err != nil {
-		return fmt.Errorf("设备不存在")
+		return apperr.Wrap(apperr.ErrDeviceNotFound, "设备不存在")
 	}
 	device.Enabled = true
 	device.Group = nil
@@ -581,7 +590,7 @@ func (s *deviceServiceImpl) EnableDevice(ctx context.Context, id uint) error {
 func (s *deviceServiceImpl) DisableDevice(ctx context.Context, id uint) error {
 	device, err := s.deviceRepo.FindByID(ctx, id)
 	if err != nil {
-		return fmt.Errorf("设备不存在")
+		return apperr.Wrap(apperr.ErrDeviceNotFound, "设备不存在")
 	}
 	device.Enabled = false
 	device.Group = nil

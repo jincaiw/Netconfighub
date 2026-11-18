@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/netconfighub/netconfighub/internal/apperr"
 	"github.com/netconfighub/netconfighub/internal/model"
 )
 
@@ -32,7 +33,7 @@ func (c *TelnetCollector) Collect(device model.Device) (string, error) {
 	addr := net.JoinHostPort(device.IP, fmt.Sprintf("%d", device.Port))
 	conn, err := net.DialTimeout("tcp", addr, c.connectTimeout)
 	if err != nil {
-		return "", fmt.Errorf("Telnet 连接失败 [%s]: %w", addr, err)
+		return "", apperr.WrapCause(apperr.ErrConnectTimeout, err, "Telnet 连接失败 [%s]: %v", addr, err)
 	}
 	defer conn.Close()
 
@@ -51,7 +52,7 @@ func (c *TelnetCollector) Collect(device model.Device) (string, error) {
 	c.sendLine(conn, device.Password)
 
 	if _, err := c.readUntil(conn, promptRe, 10*time.Second); err != nil {
-		return "", fmt.Errorf("等待命令提示符失败: %w", err)
+		return "", apperr.WrapCause(apperr.ErrPromptTimeout, err, "等待命令提示符失败: %v", err)
 	}
 
 	if device.EnablePassword != "" {
@@ -117,7 +118,7 @@ func (c *TelnetCollector) readUntil(conn net.Conn, pattern *regexp.Regexp, timeo
 				return output.String(), fmt.Errorf("连接关闭")
 			}
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-				return output.String(), fmt.Errorf("读取超时")
+				return output.String(), apperr.Wrap(apperr.ErrCommandTimeout, "读取超时")
 			}
 			return output.String(), err
 		}

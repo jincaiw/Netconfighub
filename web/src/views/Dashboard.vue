@@ -5,242 +5,152 @@
         <h1>运维总览</h1>
         <p>实时掌握设备备份运行状态，及时发现并处理异常。</p>
       </div>
-      <n-button type="primary" @click="router.push('/devices')">管理设备</n-button>
+      <t-button theme="primary" @click="router.push('/devices')">管理设备</t-button>
     </div>
 
-    <n-grid :x-gap="16" :y-gap="16" :cols="4" responsive="screen" item-responsive>
-      <n-gi span="4 m:2 l:1">
-        <n-card class="metric-card" hoverable @click="router.push('/devices')">
-          <n-statistic label="设备总数" :value="stats.totalDevices">
-            <template #prefix>
-              <span class="metric-icon metric-icon--green">
-                <n-icon :component="ServerOutline" />
-              </span>
-            </template>
-          </n-statistic>
-          <div class="metric-footnote">已纳管网络设备</div>
-        </n-card>
-      </n-gi>
-      <n-gi span="4 m:2 l:1">
-        <n-card class="metric-card" hoverable>
-          <n-statistic label="备份成功率" :value="stats.successRate">
-            <template #prefix>
-              <span class="metric-icon metric-icon--green">
-                <n-icon :component="CheckmarkCircleOutline" />
-              </span>
-            </template>
-            <template #suffix>%</template>
-          </n-statistic>
-          <div class="metric-footnote">基于全部备份任务</div>
-        </n-card>
-      </n-gi>
-      <n-gi span="4 m:2 l:1">
-        <n-card class="metric-card" hoverable @click="router.push('/failed')">
-          <n-statistic label="失败设备数" :value="stats.failedDevices">
-            <template #prefix>
-              <span class="metric-icon metric-icon--red">
-                <n-icon :component="AlertCircleOutline" />
-              </span>
-            </template>
-          </n-statistic>
-          <div class="metric-footnote">需要尽快处理</div>
-        </n-card>
-      </n-gi>
-      <n-gi span="4 m:2 l:1">
-        <n-card class="metric-card" hoverable @click="router.push('/alerts')">
-          <n-statistic label="未读告警" :value="stats.unreadAlerts">
-            <template #prefix>
-              <span class="metric-icon metric-icon--amber">
-                <n-icon :component="NotificationsOutline" />
-              </span>
-            </template>
-          </n-statistic>
-          <div class="metric-footnote">待确认告警信息</div>
-        </n-card>
-      </n-gi>
-    </n-grid>
-
-    <div class="overview-grid">
-      <div>
-        <n-card class="overview-card" title="最近备份任务">
-          <template #header-extra>
-            <n-button text type="primary" @click="router.push('/devices')">查看设备</n-button>
-          </template>
-          <n-data-table
-            :columns="taskColumns"
-            :data="recentTasks"
-            :scroll-x="560"
-            size="small"
-          />
-        </n-card>
-      </div>
-      <div>
-        <n-card class="overview-card" title="失败设备概览">
-          <template #header-extra>
-            <n-button text type="primary" @click="router.push('/failed')">查看全部</n-button>
-          </template>
-          <n-data-table
-            :columns="failedColumns"
-            :data="failedDevices"
-            :scroll-x="520"
-            size="small"
-          />
-        </n-card>
-      </div>
+    <div v-if="statsLoading" class="dashboard-loading" data-testid="dashboard-loading" aria-busy="true">
+      <t-loading size="large" text="统计数据加载中..." />
     </div>
+    <template v-else>
+      <div v-if="failedParts.length > 0" class="dashboard-error" role="alert" data-testid="dashboard-error">
+        <span>部分统计数据加载失败：{{ failedParts.join('、') }}</span>
+        <t-button size="small" variant="outline" @click="fetchStats">重新加载</t-button>
+      </div>
+      <TopPanel class="dashboard-section" :stats="stats" @navigate="handleNavigate" />
+      <MiddleChart class="dashboard-section" :tasks="allTasks" />
+      <RankList class="dashboard-section" :failed-rank="failedRank" :count-rank="countRank" />
+      <OutputOverview
+        class="dashboard-section"
+        :recent-tasks="recentTasks"
+        :failed-devices="failedDevices"
+        @detail="(id) => router.push(`/devices/${id}`)"
+        @navigate="handleNavigate"
+      />
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, h } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  NGrid,
-  NGi,
-  NCard,
-  NStatistic,
-  NIcon,
-  NDataTable,
-  NButton,
-  useMessage,
-} from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
-import {
-  ServerOutline,
-  CheckmarkCircleOutline,
-  AlertCircleOutline,
-  NotificationsOutline,
-} from '@vicons/ionicons5'
-import BackupStatus from '@/components/BackupStatus.vue'
+import { MessagePlugin } from 'tdesign-vue-next'
 import { getDevices } from '@/api/device'
 import { getBackupTasks, getFailedDevices } from '@/api/backup'
-import { getUnreadAlertCount } from '@/api/alert'
-import type { Device, BackupTask } from '@/types'
+import type { BackupTask, Device } from '@/types'
+import { useAlertSummary } from '@/composables/useAlertSummary'
+import TopPanel from './dashboard/components/TopPanel.vue'
+import MiddleChart from './dashboard/components/MiddleChart.vue'
+import RankList from './dashboard/components/RankList.vue'
+import OutputOverview from './dashboard/components/OutputOverview.vue'
+import {
+  buildStats,
+  rankByCount,
+  rankByFailed,
+  type FailedDeviceRow,
+  type RecentTaskRow,
+} from './dashboard/index'
 
 const router = useRouter()
-const message = useMessage()
+const { unreadCount: unreadAlerts, start: startAlertPolling, stop: stopAlertPolling } = useAlertSummary()
 
-const stats = reactive({
-  totalDevices: 0,
-  successRate: 0,
-  failedDevices: 0,
-  unreadAlerts: 0,
-})
+const totalDevices = ref(0)
+const allTasks = ref<BackupTask[]>([])
+const failedDeviceTotal = ref(0)
+const failedDeviceRows = ref<FailedDeviceRow[]>([])
 
-interface RecentTaskRow {
-  id: number
-  device_name: string
-  status: 'success' | 'failed' | 'pending' | 'running' | 'retrying' | 'timeout' | 'cancelled' | 'skipped'
-  finished_at: string
+// 首屏加载态与分片失败收集：加载完成前不渲染 0 值，失败时给出可见反馈与重试入口。
+const statsLoading = ref(true)
+const failedParts = ref<string[]>([])
+
+function markStatError(part: string) {
+  if (!failedParts.value.includes(part)) failedParts.value.push(part)
 }
 
-interface FailedDeviceRow {
-  id: number
-  name: string
-  ip: string
-  reason: string
+function clearStatError(part: string) {
+  failedParts.value = failedParts.value.filter((item) => item !== part)
 }
 
-const recentTasks = ref<RecentTaskRow[]>([])
-const failedDevices = ref<FailedDeviceRow[]>([])
+// 派生数据全部来自同一次取数，避免每个子段重复请求
+const stats = computed(() =>
+  buildStats({
+    totalDevices: totalDevices.value,
+    tasks: allTasks.value,
+    failedDevices: failedDeviceTotal.value,
+    unreadAlerts: unreadAlerts.value,
+  }),
+)
 
-const taskColumns: DataTableColumns<RecentTaskRow> = [
-  { title: '设备', key: 'device_name' },
-  {
-    title: '状态',
-    key: 'status',
-    width: 100,
-    render: (row) => h(BackupStatus, { status: row.status }),
-  },
-  { title: '完成时间', key: 'finished_at', width: 160 },
-]
+const recentTasks = computed<RecentTaskRow[]>(() =>
+  allTasks.value.slice(0, 10).map((task) => ({
+    id: task.id,
+    device_name: task.device_name || `设备#${task.device_id}`,
+    status: task.status,
+    finished_at: task.finished_at || '-',
+  })),
+)
 
-const failedColumns: DataTableColumns<FailedDeviceRow> = [
-  { title: '设备', key: 'name' },
-  { title: 'IP', key: 'ip', width: 130 },
-  { title: '原因', key: 'reason', ellipsis: { tooltip: true } },
-  {
-    title: '操作',
-    key: 'actions',
-    width: 80,
-    render: (row) =>
-      h(
-        NButton,
-        { size: 'small', onClick: () => router.push(`/devices/${row.id}`) },
-        { default: () => '详情' },
-      ),
-  },
-]
+const failedRank = computed(() => rankByFailed(allTasks.value))
+const countRank = computed(() => rankByCount(allTasks.value))
+const failedDevices = computed(() => failedDeviceRows.value)
+
+type NavigateTarget = 'DeviceList' | 'FailedDevices' | 'AlertList'
+const routeMap: Record<NavigateTarget, string> = {
+  DeviceList: '/devices',
+  FailedDevices: '/failed',
+  AlertList: '/alerts',
+}
+
+function handleNavigate(target: NavigateTarget) {
+  router.push(routeMap[target])
+}
 
 async function fetchStats() {
+  statsLoading.value = true
+  failedParts.value = []
   try {
     const res = await getDevices({ page: 1, page_size: 1 })
-    stats.totalDevices = res.data.total
+    totalDevices.value = res.data.total
+    clearStatError('设备总数')
   } catch {
-    message.error('获取设备统计失败')
+    markStatError('设备总数')
+    MessagePlugin.error('获取设备统计失败')
   }
 
   try {
-    const backupRes = await getBackupTasks({ page: 1, page_size: 1 })
-    const total = backupRes.data.total
-    if (total > 0) {
-      const allRes = await getBackupTasks({ page: 1, page_size: total })
-      const successCount = allRes.data.items.filter((t: BackupTask) => t.status === 'success').length
-      stats.successRate = Math.round((successCount / total) * 1000) / 10
-    } else {
-      stats.successRate = 0
-    }
+    const first = await getBackupTasks({ page: 1, page_size: 1 })
+    const total = first.data.total
+    allTasks.value = total > 0 ? (await getBackupTasks({ page: 1, page_size: total })).data.items : []
+    clearStatError('备份任务')
   } catch {
-    message.error('获取备份统计失败')
+    markStatError('备份任务')
+    MessagePlugin.error('获取备份统计失败')
   }
 
-  try {
-    const res = await getFailedDevices({ page: 1, page_size: 1 })
-    stats.failedDevices = res.data.total
-  } catch {
-    message.error('获取失败设备统计失败')
-  }
-
-  try {
-    const res = await getUnreadAlertCount()
-    stats.unreadAlerts = res.data.count
-  } catch {
-    message.error('获取告警统计失败')
-  }
-}
-
-async function fetchRecentTasks() {
-  try {
-    const res = await getBackupTasks({ page: 1, page_size: 10 })
-    recentTasks.value = res.data.items.map((t: BackupTask) => ({
-      id: t.id,
-      device_name: t.device_name || `设备#${t.device_id}`,
-      status: t.status,
-      finished_at: t.finished_at || '-',
-    }))
-  } catch {
-    message.error('获取备份任务列表失败')
-  }
-}
-
-async function fetchFailedDevices() {
   try {
     const res = await getFailedDevices({ page: 1, page_size: 10 })
-    failedDevices.value = res.data.items.map((d: Device) => ({
-      id: d.id,
-      name: d.name,
-      ip: d.ip,
-      reason: d.last_failure_reason || '未知原因',
+    failedDeviceTotal.value = res.data.total
+    failedDeviceRows.value = res.data.items.map((device: Device) => ({
+      id: device.id,
+      name: device.name,
+      ip: device.ip,
+      reason: device.last_failure_reason || '未知原因',
     }))
+    clearStatError('失败设备')
   } catch {
-    message.error('获取失败设备列表失败')
+    markStatError('失败设备')
+    MessagePlugin.error('获取失败设备统计失败')
   }
+  // 首屏计数由 startAlertPolling()/start() 统一发起，此处不再重复请求（保持去重契约）。
+  statsLoading.value = false
 }
 
 onMounted(() => {
   fetchStats()
-  fetchRecentTasks()
-  fetchFailedDevices()
+  startAlertPolling()
+})
+
+onUnmounted(() => {
+  stopAlertPolling()
 })
 </script>
 
@@ -260,7 +170,7 @@ onMounted(() => {
 }
 
 .page-heading h1 {
-  color: #0f172a;
+  color: var(--td-text-color-primary);
   font-size: 28px;
   line-height: 1.25;
   letter-spacing: -0.02em;
@@ -268,87 +178,41 @@ onMounted(() => {
 
 .page-heading p {
   margin-top: 7px;
-  color: #64748b;
+  color: var(--td-text-color-secondary);
   font-size: 14px;
 }
 
-.metric-card {
-  min-height: 148px;
-  cursor: pointer;
-  border-color: #dfe7f1;
+.dashboard-section {
+  display: block;
+  margin-bottom: 16px;
 }
 
-.metric-card :deep(.n-card__content) {
+.dashboard-loading {
+  min-height: 240px;
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.metric-card :deep(.n-statistic-value__content) {
-  color: #0f172a;
-  font-size: 30px;
-  font-weight: 700;
-}
-
-.metric-card :deep(.n-statistic__label) {
-  color: #475569;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.metric-icon {
-  width: 42px;
-  height: 42px;
-  display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-right: 10px;
-  border-radius: 50%;
-  font-size: 22px;
 }
 
-.metric-icon--green {
-  color: #059669;
-  background: #e7f8f0;
-}
-
-.metric-icon--red {
-  color: #dc2626;
-  background: #fff0f0;
-}
-
-.metric-icon--amber {
-  color: #d97706;
-  background: #fff7e6;
-}
-
-.metric-footnote {
-  margin-top: 16px;
-  color: #94a3b8;
-  font-size: 12px;
-}
-
-.overview-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(360px, 2fr);
-  gap: 16px;
-  margin-top: 18px;
-}
-
-.overview-card {
-  min-height: 430px;
-  border-color: #dfe7f1;
-}
-
-@media (max-width: 1200px) {
-  .overview-grid {
-    grid-template-columns: 1fr;
-  }
+.dashboard-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--td-error-color-2);
+  border-radius: var(--td-radius-default);
+  color: var(--td-error-color);
+  background: var(--td-error-color-1);
+  font-size: 13px;
 }
 
 @media (max-width: 768px) {
   .page-heading {
-    align-items: center;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
   }
 
   .page-heading h1 {
@@ -358,6 +222,5 @@ onMounted(() => {
   .page-heading p {
     max-width: 240px;
   }
-
 }
 </style>

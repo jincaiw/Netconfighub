@@ -1,13 +1,16 @@
 <template>
-  <n-config-provider>
-    <n-message-provider>
-      <n-dialog-provider>
-        <router-view />
-      </n-dialog-provider>
-    </n-message-provider>
-  </n-config-provider>
+  <t-config-provider>
+    <router-view />
+  </t-config-provider>
 </template>
 
 <script setup lang="ts">
-import { NConfigProvider, NMessageProvider, NDialogProvider } from 'naive-ui'
+import { onUnmounted } from 'vue'
+import { useSettingStore } from '@/stores/setting'
+
+const settingStore = useSettingStore()
+
+onUnmounted(() => {
+  settingStore.dispose()
+})
 </script>

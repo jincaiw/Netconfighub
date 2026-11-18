@@ -3,6 +3,7 @@
 # Tests ALL API endpoints on http://127.0.0.1:18080
 
 BASE="${NCH_API_BASE:-http://127.0.0.1:18080}"
+ADMIN_PASSWORD="${NCH_ADMIN_PASSWORD:-admin}"
 PASS=0
 FAIL=0
 FAILURES=""
@@ -97,7 +98,7 @@ echo "=================="
 
 TOKEN=$(curl -s -X POST "$BASE/api/v1/auth/login" \
     -H "Content-Type: application/json" \
-    -d '{"username":"admin","password":"admin"}' | extract_field "token")
+    -d "{\"username\":\"admin\",\"password\":\"${ADMIN_PASSWORD}\"}" | extract_field "token")
 
 if [ -z "$TOKEN" ]; then
     echo "FATAL: Could not obtain auth token. Aborting."
@@ -118,7 +119,7 @@ test_endpoint "GET" "$BASE/api/v1/health" "200" "none" "" "Health check"
 ############################################
 echo ">>> 2. AUTH"
 echo "=========="
-test_endpoint "POST" "$BASE/api/v1/auth/login" "200" "none" '{"username":"admin","password":"admin"}' "Login correct"
+test_endpoint "POST" "$BASE/api/v1/auth/login" "200" "none" "{\"username\":\"admin\",\"password\":\"${ADMIN_PASSWORD}\"}" "Login correct"
 test_endpoint "POST" "$BASE/api/v1/auth/login" "401" "none" '{"username":"admin","password":"wrongpass"}' "Login wrong pass"
 test_endpoint "POST" "$BASE/api/v1/auth/refresh" "200" "token" "" "Refresh token"
 test_endpoint "POST" "$BASE/api/v1/auth/logout" "200" "token" "" "Logout"
@@ -126,7 +127,7 @@ test_endpoint "POST" "$BASE/api/v1/auth/logout" "200" "token" "" "Logout"
 # Re-login for subsequent tests
 TOKEN=$(curl -s -X POST "$BASE/api/v1/auth/login" \
     -H "Content-Type: application/json" \
-    -d '{"username":"admin","password":"admin"}' | extract_field "token")
+    -d "{\"username\":\"admin\",\"password\":\"${ADMIN_PASSWORD}\"}" | extract_field "token")
 
 ############################################
 # Admins

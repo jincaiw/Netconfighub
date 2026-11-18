@@ -2,8 +2,10 @@ package baseline
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCompareIdenticalContent(t *testing.T) {
@@ -204,5 +206,75 @@ func TestDiffOutputFormat(t *testing.T) {
 	}
 	if !hasPlus {
 		t.Error("差异输出应包含 + 行（新增行）")
+	}
+}
+
+func TestCompareOversizedContentIsBounded(t *testing.T) {
+	oldLines := make([]string, 2500)
+	newLines := make([]string, 2500)
+	for i := 0; i < 2500; i++ {
+		oldLines[i] = fmt.Sprintf("old line %d", i)
+		newLines[i] = fmt.Sprintf("new line %d", i)
+	}
+	baselineText := strings.Join(oldLines, "\n")
+	currentText := strings.Join(newLines, "\n")
+
+	start := time.Now()
+	engine := NewEngine(nil)
+	result, err := engine.Compare(context.Background(), baselineText, currentText, 1)
+	if err != nil {
+		t.Fatalf("Compare failed: %v", err)
+	}
+	if result.AddedLines != 2500 || result.RemovedLines != 2500 {
+		t.Fatalf("added=%d removed=%d, want 2500/2500", result.AddedLines, result.RemovedLines)
+	}
+	if !result.HasDeviation {
+		t.Fatal("expected deviation")
+	}
+	if time.Since(start) > 2*time.Second {
+		t.Fatal("oversized diff took too long; LCS cap not effective")
+	}
+}
+
+func TestCountAddedRemoved(t *testing.T) {
+	tests := []struct {
+		name       string
+		oldLines   []string
+		newLines   []string
+		wantAdded  int
+		wantRemove int
+	}{
+		{"identical", []string{"a", "b"}, []string{"a", "b"}, 0, 0},
+		{"pure addition", []string{"a"}, []string{"a", "b", "c"}, 2, 0},
+		{"pure removal", []string{"a", "b", "c"}, []string{"a"}, 0, 2},
+		{"mixed", []string{"a", "b"}, []string{"a", "c"}, 1, 1},
+		{"duplicate lines", []string{"a", "a", "b"}, []string{"a", "c", "c"}, 2, 2},
+		{"both empty", nil, nil, 0, 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			added, removed := countAddedRemoved(tt.oldLines, tt.newLines)
+			if added != tt.wantAdded || removed != tt.wantRemove {
+				t.Errorf("countAddedRemoved() = (%d, %d), want (%d, %d)", added, removed, tt.wantAdded, tt.wantRemove)
+			}
+		})
+	}
+}
+
+// TestCompareOversizedContentCountsApproximation forces the truncated path and
+// verifies it reports the multiset approximation (1/1) instead of the total
+// line count (2/2).
+func TestCompareOversizedContentCountsApproximation(t *testing.T) {
+	t.Setenv("NCH_LCS_MAX_LINES", "1")
+	engine := NewEngine(nil)
+	result, err := engine.Compare(context.Background(), "a\nb\n", "a\nc\n", 9)
+	if err != nil {
+		t.Fatalf("Compare failed: %v", err)
+	}
+	if result.AddedLines != 1 || result.RemovedLines != 1 {
+		t.Fatalf("added=%d removed=%d, want 1/1 (multiset approximation)", result.AddedLines, result.RemovedLines)
+	}
+	if !strings.Contains(result.DiffContent, "配置过大") {
+		t.Fatalf("期望超限截断输出, got %q", result.DiffContent)
 	}
 }

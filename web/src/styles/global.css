@@ -1,3 +1,25 @@
+/*
+ * 断点契约：全局统一 768px（与 TDesign --td-screen-sm 一致）。
+ * CSS 的 @media 条件不能使用 var()，因此这是文档化契约而非运行时变量：
+ * 各组件媒体查询一律写 (max-width: 768px)，新增断点需同步更新本注释与相关组件。
+ *
+ * TDesign 内部类覆盖范围：仅在主内容区（MainLayout 的 .main-content）内生效，
+ * 不再全局命中弹层/登录页等挂载点；并排除自带反向覆盖的指标卡，避免互相抵消。
+ */
+
+/* 统一键盘焦点反馈：仅作用于可聚焦的交互元素，不改变既有配色 token。 */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:not([tabindex='-1']):focus-visible,
+[role='button']:focus-visible,
+[role='link']:focus-visible {
+  outline: 2px solid var(--td-brand-color);
+  outline-offset: 2px;
+}
+
 *,
 *::before,
 *::after {
@@ -14,8 +36,8 @@ body {
     'Noto Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  color: #0f172a;
-  background: #f4f7fb;
+  color: var(--td-text-color-primary);
+  background: var(--td-bg-color-page);
 }
 
 #app {
@@ -38,23 +60,23 @@ a {
   opacity: 0;
 }
 
-.n-card {
+.main-content .t-card:not(.metric-card) {
   margin-bottom: 16px;
-  border-radius: 10px;
+  border-radius: var(--td-radius-medium);
 }
 
-.n-data-table .n-data-table-td,
-.n-data-table .n-data-table-th {
+.t-table .t-table__th,
+.t-table .t-table__td {
   font-size: 13px;
 }
 
-.n-layout-header {
+.t-header {
   position: sticky;
   top: 0;
   z-index: 10;
 }
 
-.n-form-item {
+.main-content .t-form__item {
   margin-bottom: 4px;
 }
 
@@ -70,19 +92,20 @@ a {
 
 .diff-content .diff-add,
 .diff-content > [class*="diff-add"] {
-  background-color: #f0f9eb;
-  color: #67c23a;
+  background-color: var(--td-success-color-1);
+  color: var(--td-success-color-5);
 }
 
 .diff-content .diff-remove,
 .diff-content > [class*="diff-remove"] {
-  background-color: #fef0f0;
-  color: #f56c6c;
+  background-color: var(--td-error-color-1);
+  color: var(--td-error-color-5);
 }
 
 @media (max-width: 768px) {
-  .n-grid {
-    --cols: 1 !important;
+  .main-content .t-row > .t-col {
+    flex: 0 0 100%;
+    max-width: 100%;
   }
 
   .login-card {

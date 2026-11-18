@@ -27,16 +27,35 @@ func (r *groupRepoImpl) FindByID(ctx context.Context, id uint) (*model.Group, er
 	return &group, nil
 }
 
+// maxGroupLookupCaps the bounded one-shot group lookup used by CSV import.
+const maxGroupLookupCap = 10000
+
 func (r *groupRepoImpl) List(ctx context.Context, offset, limit int) ([]model.Group, int64, error) {
 	var groups []model.Group
 	var total int64
 	if err := r.db.WithContext(ctx).Model(&model.Group{}).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
+	if limit <= 0 || limit > maxGroupLookupCap {
+		limit = maxGroupLookupCap
+	}
 	if err := r.db.WithContext(ctx).Offset(offset).Limit(limit).Find(&groups).Error; err != nil {
 		return nil, 0, err
 	}
 	return groups, total, nil
+}
+
+// ListAllNames returns only the fields needed to build a name→ID map, capped so
+// an unbounded table scan cannot happen. CSV import calls this once per request.
+func (r *groupRepoImpl) ListAllNames(ctx context.Context, limit int) ([]model.Group, error) {
+	if limit <= 0 || limit > maxGroupLookupCap {
+		limit = maxGroupLookupCap
+	}
+	var groups []model.Group
+	if err := r.db.WithContext(ctx).Select("id", "name").Limit(limit).Find(&groups).Error; err != nil {
+		return nil, err
+	}
+	return groups, nil
 }
 
 func (r *groupRepoImpl) Update(ctx context.Context, group *model.Group) error {

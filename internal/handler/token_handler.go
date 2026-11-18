@@ -24,8 +24,13 @@ func (r *Router) listTokens(c *gin.Context) {
 		Unauthorized(c, "未认证")
 		return
 	}
+	uid, ok := adminID.(uint)
+	if !ok {
+		Unauthorized(c, "未认证")
+		return
+	}
 
-	tokens, err := r.tokenService.List(c.Request.Context(), adminID.(uint))
+	tokens, err := r.tokenService.List(c.Request.Context(), uid)
 	if err != nil {
 		DatabaseError(c, "查询 Token 列表失败")
 		return
@@ -39,6 +44,11 @@ func (r *Router) createToken(c *gin.Context) {
 		Unauthorized(c, "未认证")
 		return
 	}
+	uid, ok := adminID.(uint)
+	if !ok {
+		Unauthorized(c, "未认证")
+		return
+	}
 
 	var req createTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -46,7 +56,7 @@ func (r *Router) createToken(c *gin.Context) {
 		return
 	}
 
-	token, rawToken, err := r.tokenService.Create(c.Request.Context(), adminID.(uint), req.Name, req.ExpiresAt)
+	token, rawToken, err := r.tokenService.Create(c.Request.Context(), uid, req.Name, req.ExpiresAt)
 	if err != nil {
 		DatabaseError(c, "创建 Token 失败")
 		return
@@ -72,6 +82,11 @@ func (r *Router) deleteToken(c *gin.Context) {
 		Unauthorized(c, "未认证")
 		return
 	}
+	uid, ok := adminID.(uint)
+	if !ok {
+		Unauthorized(c, "未认证")
+		return
+	}
 
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
@@ -79,7 +94,7 @@ func (r *Router) deleteToken(c *gin.Context) {
 		return
 	}
 
-	if err := r.tokenService.Delete(c.Request.Context(), uint(id), adminID.(uint)); err != nil {
+	if err := r.tokenService.Delete(c.Request.Context(), uint(id), uid); err != nil {
 		DatabaseError(c, "删除 Token 失败")
 		return
 	}

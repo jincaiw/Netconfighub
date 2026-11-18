@@ -1,65 +1,57 @@
 <template>
   <div class="alert-list">
-    <n-card title="告警管理">
-      <template #header-extra>
-        <n-space>
-          <n-select
-            v-model:value="filterType"
+    <t-card title="告警管理">
+      <template #actions>
+        <t-space>
+          <t-select
+            v-model="filterType"
             :options="typeOptions"
             placeholder="按类型筛选"
             clearable
             style="width: 160px"
-            @update:value="handleFilter"
+            @change="handleFilter"
           />
-          <n-select
-            v-model:value="filterSeverity"
+          <t-select
+            v-model="filterSeverity"
             :options="severityOptions"
             placeholder="按级别筛选"
             clearable
             style="width: 140px"
-            @update:value="handleFilter"
+            @change="handleFilter"
           />
-          <n-button @click="handleMarkAllRead" :disabled="alerts.length === 0">全部已读</n-button>
-        </n-space>
+          <t-button :disabled="alerts.length === 0" @click="handleMarkAllRead">全部已读</t-button>
+        </t-space>
       </template>
-      <n-data-table
+      <div v-if="loadError" class="list-error" role="alert">
+        <span>告警列表加载失败，请重新加载</span>
+        <t-button size="small" variant="text" theme="primary" @click="fetchAlerts">重新加载</t-button>
+      </div>
+      <t-table
         :columns="columns"
         :data="alerts"
         :loading="loading"
-        :pagination="paginationReactive"
-        :row-key="(row: Alert) => row.id"
-        remote
-        @update:page="handlePageChange"
-        @update:page-size="handlePageSizeChange"
-      />
-    </n-card>
+        :pagination="tablePagination"
+        row-key="id"
+        @page-change="handlePageChange"
+      >
+        <template #empty>暂无数据</template>
+      </t-table>
+    </t-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, h } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  NCard,
-  NDataTable,
-  NSpace,
-  NButton,
-  NSelect,
-  NTag,
-  useMessage,
-  useDialog,
-} from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
+import { Button, Space, Tag, DialogPlugin, MessagePlugin, type PrimaryTableCol } from 'tdesign-vue-next'
 import { getAlerts, markAlertAsRead, markAllAlertsAsRead, deleteAlert } from '@/api/alert'
 import type { Alert } from '@/types'
 
 const router = useRouter()
-const message = useMessage()
-const dialog = useDialog()
 
 const loading = ref(false)
+const loadError = ref(false)
 const alerts = ref<Alert[]>([])
-const total = ref(0)
 const filterType = ref<string | null>(null)
 const filterSeverity = ref<string | null>(null)
 
@@ -78,14 +70,20 @@ const paginationReactive = reactive({
   page: 1,
   pageSize: 20,
   itemCount: 0,
-  showSizePicker: true,
-  pageSizes: [10, 20, 50],
 })
 
-const severityColorMap: Record<string, 'default' | 'error' | 'warning' | 'info' | 'success' | 'primary'> = {
-  error: 'error',
+const tablePagination = computed(() => ({
+  current: paginationReactive.page,
+  pageSize: paginationReactive.pageSize,
+  total: paginationReactive.itemCount,
+  showPageSize: true,
+  pageSizeOptions: [10, 20, 50],
+}))
+
+const severityThemeMap: Record<string, 'danger' | 'warning' | 'primary'> = {
+  error: 'danger',
   warning: 'warning',
-  info: 'info',
+  info: 'primary',
 }
 
 const severityLabelMap: Record<string, string> = {
@@ -99,59 +97,74 @@ const typeLabelMap: Record<string, string> = {
   baseline_deviation: '基线偏差',
 }
 
-const columns: DataTableColumns<Alert> = [
+const columns: PrimaryTableCol<Alert>[] = [
   {
     title: '状态',
-    key: 'is_read',
+    colKey: 'is_read',
     width: 70,
-    render: (row) =>
-      h(NTag, { size: 'small', type: row.is_read ? 'default' : 'warning' }, { default: () => row.is_read ? '已读' : '未读' }),
+    cell: (h, { row }) =>
+      h(Tag, { size: 'small', theme: row.is_read ? 'default' : 'warning', variant: 'light' }, {
+        default: () => (row.is_read ? '已读' : '未读'),
+      }),
   },
   {
     title: '类型',
-    key: 'type',
+    colKey: 'type',
     width: 100,
-    render: (row) => h(NTag, { size: 'small' }, { default: () => typeLabelMap[row.type] || row.type }),
+    cell: (h, { row }) =>
+      h(Tag, { size: 'small', variant: 'light' }, { default: () => typeLabelMap[row.type] || row.type }),
   },
   {
     title: '级别',
-    key: 'severity',
+    colKey: 'severity',
     width: 80,
-    render: (row) => h(NTag, { size: 'small', type: severityColorMap[row.severity] || 'default' }, { default: () => severityLabelMap[row.severity] || row.severity }),
+    cell: (h, { row }) =>
+      h(Tag, { size: 'small', theme: severityThemeMap[row.severity] || 'default', variant: 'light' }, {
+        default: () => severityLabelMap[row.severity] || row.severity,
+      }),
   },
-  { title: '设备', key: 'device_name', width: 120 },
-  { title: '标题', key: 'title', ellipsis: { tooltip: true } },
-  { title: '消息', key: 'message', ellipsis: { tooltip: true } },
-  { title: '时间', key: 'created_at', width: 160 },
+  { title: '设备', colKey: 'device_name', width: 120 },
+  { title: '标题', colKey: 'title', ellipsis: true },
+  { title: '消息', colKey: 'message', ellipsis: true },
+  { title: '时间', colKey: 'created_at', width: 160 },
   {
     title: '操作',
-    key: 'actions',
+    colKey: 'actions',
     width: 180,
-    render: (row) =>
-      h(NSpace, { size: 'small' }, {
-        default: () => [
-          h(
-            NButton,
-            { size: 'small', onClick: () => handleViewDevice(row), disabled: !row.device_id },
-            { default: () => '查看设备' },
-          ),
-          h(
-            NButton,
-            { size: 'small', type: row.is_read ? 'default' : 'primary', onClick: () => handleMarkRead(row) },
-            { default: () => row.is_read ? '已读' : '标记已读' },
-          ),
-          h(
-            NButton,
-            { size: 'small', type: 'error', onClick: () => handleDelete(row) },
-            { default: () => '删除' },
-          ),
-        ],
-      }),
+    cell: (h, { row }) =>
+      h(
+        Space,
+        { size: 'small' },
+        {
+          default: () => [
+            h(
+              Button,
+              { size: 'small', onClick: () => handleViewDevice(row), disabled: !row.device_id },
+              { default: () => '查看设备' },
+            ),
+            h(
+              Button,
+              {
+                size: 'small',
+                theme: row.is_read ? 'default' : 'primary',
+                onClick: () => handleMarkRead(row),
+              },
+              { default: () => (row.is_read ? '已读' : '标记已读') },
+            ),
+            h(
+              Button,
+              { size: 'small', theme: 'danger', onClick: () => handleDelete(row) },
+              { default: () => '删除' },
+            ),
+          ],
+        },
+      ),
   },
 ]
 
 async function fetchAlerts() {
   loading.value = true
+  loadError.value = false
   try {
     const params: Record<string, any> = {
       page: paginationReactive.page,
@@ -161,23 +174,22 @@ async function fetchAlerts() {
     if (filterSeverity.value) params.severity = filterSeverity.value
     const res = await getAlerts(params)
     alerts.value = res.data.items
-    total.value = res.data.total
     paginationReactive.itemCount = res.data.total
   } catch {
-    message.error('获取告警列表失败')
+    loadError.value = true
+    MessagePlugin.error('获取告警列表失败')
   } finally {
     loading.value = false
   }
 }
 
-function handlePageChange(page: number) {
-  paginationReactive.page = page
-  fetchAlerts()
-}
-
-function handlePageSizeChange(pageSize: number) {
-  paginationReactive.pageSize = pageSize
-  paginationReactive.page = 1
+function handlePageChange(pageInfo: { current: number; pageSize: number }) {
+  if (pageInfo.pageSize && pageInfo.pageSize !== paginationReactive.pageSize) {
+    paginationReactive.pageSize = pageInfo.pageSize
+    paginationReactive.page = 1
+  } else {
+    paginationReactive.page = pageInfo.current
+  }
   fetchAlerts()
 }
 
@@ -197,35 +209,38 @@ async function handleMarkRead(alert: Alert) {
   try {
     await markAlertAsRead(alert.id)
     alert.is_read = true
-    message.success('已标记为已读')
+    MessagePlugin.success('已标记为已读')
   } catch {
-    message.error('标记已读失败')
+    MessagePlugin.error('标记已读失败')
   }
 }
 
 async function handleMarkAllRead() {
   try {
     await markAllAlertsAsRead()
-    alerts.value.forEach(a => { a.is_read = true })
-    message.success('已全部标记为已读')
+    alerts.value.forEach((a) => {
+      a.is_read = true
+    })
+    MessagePlugin.success('已全部标记为已读')
   } catch {
-    message.error('标记全部已读失败')
+    MessagePlugin.error('标记全部已读失败')
   }
 }
 
 function handleDelete(alert: Alert) {
-  dialog.warning({
-    title: '确认删除',
-    content: `确定要删除该告警吗？`,
-    positiveText: '删除',
-    negativeText: '取消',
-    onPositiveClick: async () => {
+  DialogPlugin.confirm({
+    header: '确认删除',
+    body: '确定要删除该告警吗？',
+    theme: 'warning',
+    confirmBtn: '删除',
+    cancelBtn: '取消',
+    onConfirm: async () => {
       try {
         await deleteAlert(alert.id)
-        message.success('告警已删除')
+        MessagePlugin.success('告警已删除')
         fetchAlerts()
       } catch {
-        message.error('删除告警失败')
+        MessagePlugin.error('删除告警失败')
       }
     },
   })
@@ -239,5 +254,19 @@ onMounted(() => {
 <style scoped>
 .alert-list {
   width: 100%;
+}
+
+.list-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--td-error-color-2);
+  border-radius: var(--td-radius-default);
+  color: var(--td-error-color);
+  background: var(--td-error-color-1);
+  font-size: 13px;
 }
 </style>

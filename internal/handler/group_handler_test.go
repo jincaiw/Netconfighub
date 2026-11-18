@@ -53,7 +53,21 @@ func setupGroupTestRouter(db *gorm.DB) *gin.Engine {
 	alertSvc := service.NewAlertService(alertRepo)
 
 	loginLimiter := middleware.NewRateLimiter(10, time.Minute)
-	router := NewRouter(adminSvc, tokenSvc, authSvc, deviceSvc, groupSvc, backupSvc, baselineSvc, deviationSvc, alertSvc, nil, nil, nil, &mockScheduler{}, "test-jwt-secret", tokenRepo, loginLimiter)
+	backupSvc.SetScheduler(&mockScheduler{})
+	router := NewRouter(RouterDeps{
+		AdminService:     adminSvc,
+		TokenService:     tokenSvc,
+		AuthService:      authSvc,
+		DeviceService:    deviceSvc,
+		GroupService:     groupSvc,
+		BackupService:    backupSvc,
+		BaselineService:  baselineSvc,
+		DeviationService: deviationSvc,
+		AlertService:     alertSvc,
+		TokenAuth:        middleware.APITokenAuth(tokenRepo),
+		JWTSecret:        "test-jwt-secret",
+		LoginRateLimiter: loginLimiter,
+	})
 
 	engine := gin.New()
 	router.Setup(engine)
@@ -262,15 +276,15 @@ func TestDeleteGroupWithDevices(t *testing.T) {
 	groupID := uint(createData["id"].(float64))
 
 	deviceBody, _ := json.Marshal(map[string]interface{}{
-		"name":          "device-in-group",
-		"ip":    "10.0.10.1",
-		"vendor":        "cisco",
-		"model":         "ios",
+		"name":     "device-in-group",
+		"ip":       "10.0.10.1",
+		"vendor":   "cisco",
+		"model":    "ios",
 		"protocol": "ssh",
-		"port":          22,
-		"username":      "admin",
-		"password":      "secret",
-		"group_id":      groupID,
+		"port":     22,
+		"username": "admin",
+		"password": "secret",
+		"group_id": groupID,
 	})
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/devices", bytes.NewReader(deviceBody))
 	req.Header.Set("Content-Type", "application/json")
@@ -338,15 +352,15 @@ func TestTriggerGroupBackup(t *testing.T) {
 
 	for i := 0; i < 2; i++ {
 		deviceBody, _ := json.Marshal(map[string]interface{}{
-			"name":          "group-device-" + string(rune('A'+i)),
-			"ip":    "10.0.20." + string(rune('1'+i)),
-			"vendor":        "cisco",
-			"model":         "ios",
+			"name":     "group-device-" + string(rune('A'+i)),
+			"ip":       "10.0.20." + string(rune('1'+i)),
+			"vendor":   "cisco",
+			"model":    "ios",
 			"protocol": "ssh",
-			"port":          22,
-			"username":      "admin",
-			"password":      "secret",
-			"group_id":      groupID,
+			"port":     22,
+			"username": "admin",
+			"password": "secret",
+			"group_id": groupID,
 		})
 		req := httptest.NewRequest(http.MethodPost, "/api/v1/devices", bytes.NewReader(deviceBody))
 		req.Header.Set("Content-Type", "application/json")
@@ -402,7 +416,21 @@ func TestTriggerGroupBackupEmptyGroup(t *testing.T) {
 	alertSvc := service.NewAlertService(alertRepo)
 
 	loginLimiter2 := middleware.NewRateLimiter(10, time.Minute)
-	router := NewRouter(adminSvc, tokenSvc, authSvc, deviceSvc, groupSvc, backupSvc, baselineSvc, deviationSvc, alertSvc, nil, nil, nil, &mockScheduler{submitGroupErr: fmt.Errorf("分组下没有设备")}, "test-jwt-secret", tokenRepo, loginLimiter2)
+	backupSvc.SetScheduler(&mockScheduler{submitGroupErr: fmt.Errorf("分组下没有设备")})
+	router := NewRouter(RouterDeps{
+		AdminService:     adminSvc,
+		TokenService:     tokenSvc,
+		AuthService:      authSvc,
+		DeviceService:    deviceSvc,
+		GroupService:     groupSvc,
+		BackupService:    backupSvc,
+		BaselineService:  baselineSvc,
+		DeviationService: deviationSvc,
+		AlertService:     alertSvc,
+		TokenAuth:        middleware.APITokenAuth(tokenRepo),
+		JWTSecret:        "test-jwt-secret",
+		LoginRateLimiter: loginLimiter2,
+	})
 	engine := gin.New()
 	router.Setup(engine)
 	token := loginAndGetToken(t, engine)

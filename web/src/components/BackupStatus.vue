@@ -1,24 +1,35 @@
 <template>
-  <n-tag :type="tagType" size="small">{{ label }}</n-tag>
+  <t-tag :theme="tagTheme" variant="light" size="small">{{ label }}</t-tag>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import { NTag } from 'naive-ui'
+
+type TagTheme = 'default' | 'primary' | 'success' | 'warning' | 'danger'
 
 const props = defineProps<{
-  status: 'success' | 'failed' | 'pending' | 'running' | 'never' | 'retrying' | 'timeout' | 'cancelled' | 'skipped' | ''
+  status:
+    | 'success'
+    | 'failed'
+    | 'pending'
+    | 'running'
+    | 'never'
+    | 'retrying'
+    | 'timeout'
+    | 'cancelled'
+    | 'skipped'
+    | ''
 }>()
 
-const tagType = computed(() => {
-  const map: Record<string, 'success' | 'error' | 'warning' | 'info' | 'default'> = {
+const tagTheme = computed<TagTheme>(() => {
+  const map: Record<string, TagTheme> = {
     success: 'success',
-    failed: 'error',
-    pending: 'info',
+    failed: 'danger',
+    pending: 'primary',
     running: 'warning',
     never: 'default',
     retrying: 'warning',
-    timeout: 'error',
+    timeout: 'danger',
     cancelled: 'default',
     skipped: 'default',
     '': 'default',

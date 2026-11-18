@@ -3,9 +3,13 @@ import { login } from './helpers'
 
 test.describe('登录/登出流程', () => {
   test('正确用户名密码登录成功，跳转到仪表盘', async ({ page }) => {
-    await login(page, 'admin', 'admin')
+    await login(page)
     await expect(page).toHaveURL(/\/dashboard/)
     await expect(page.getByText('设备总数')).toBeVisible()
+    await expect(page.getByText('备份成功率')).toBeVisible()
+    await expect(page.getByText('备份趋势')).toBeVisible()
+    await expect(page.getByText('失败次数 TOP5')).toBeVisible()
+    await expect(page.getByText('最近备份任务')).toBeVisible()
   })
 
   test('错误密码登录失败，显示错误提示', async ({ page }) => {
@@ -13,7 +17,6 @@ test.describe('登录/登出流程', () => {
     await page.locator('input').first().fill('admin')
     await page.locator('input[type="password"]').fill('wrongpassword')
     await page.getByRole('button', { name: '登录' }).click()
-    await page.waitForTimeout(2000)
     await expect(page).toHaveURL(/\/login/)
   })
 
@@ -24,7 +27,7 @@ test.describe('登录/登出流程', () => {
   })
 
   test('登出后跳转到登录页', async ({ page }) => {
-    await login(page, 'admin', 'admin')
+    await login(page)
     await expect(page).toHaveURL(/\/dashboard/)
     await page.getByRole('button', { name: '退出' }).click()
     await page.waitForURL('**/login**', { timeout: 10000 })

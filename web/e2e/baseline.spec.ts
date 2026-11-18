@@ -24,17 +24,21 @@ test.describe('基线管理流程', () => {
     for (const id of createdBaselineIds) {
       try {
         await deleteBaseline(token, id)
-      } catch {}
+      } catch {
+      // cleanup is best-effort
+    }
     }
     try {
       await deleteDevice(token, deviceId)
-    } catch {}
+    } catch {
+      // cleanup is best-effort
+    }
   })
 
   test('打开基线管理页', async ({ page }) => {
     await login(page)
     await page.goto('/baselines')
-    await expect(page.locator('.n-card-header__main').filter({ hasText: '基线列表' })).toBeVisible()
+    await expect(page.locator('.t-card__title').filter({ hasText: '基线列表' })).toBeVisible()
     await expect(page.locator('table')).toBeVisible()
   })
 
@@ -43,14 +47,14 @@ test.describe('基线管理流程', () => {
     await page.goto('/baselines')
     await expect(page.locator('table')).toBeVisible()
     await page.getByRole('button', { name: '创建基线' }).click()
-    await expect(page.locator('.n-dialog')).toBeVisible()
-    await page.locator('.n-radio').filter({ hasText: '设备' }).click()
-    await page.locator('.n-form-item').filter({ hasText: '选择设备' }).locator('.n-base-selection').click()
-    await page.waitForTimeout(500)
-    await page.locator('.n-base-select-option').first().click()
-    await page.locator('.n-form-item').filter({ hasText: '基线内容' }).locator('textarea').fill('hostname e2e-test\ninterface Gig0/1\n ip address 10.0.0.1')
-    await page.locator('.n-dialog').getByRole('button', { name: '确定' }).click()
-    await page.waitForTimeout(2000)
+    await expect(page.locator('.t-dialog:visible')).toBeVisible()
+    await page.locator('.t-radio').filter({ hasText: '设备' }).click()
+    await page.locator('.t-form__item').filter({ hasText: '选择设备' }).locator('.t-select').click()
+    await expect(page.locator('.t-select-option').first()).toBeVisible()
+    await page.locator('.t-select-option').first().click()
+    await page.locator('.t-form__item').filter({ hasText: '基线内容' }).locator('textarea').fill('hostname e2e-test\ninterface Gig0/1\n ip address 10.0.0.1')
+    await page.locator('.t-dialog:visible').getByRole('button', { name: '确定' }).click()
+    await expect(page.locator('.t-dialog:visible')).toBeHidden()
   })
 
   test('查看基线列表', async ({ page }) => {
@@ -62,7 +66,7 @@ test.describe('基线管理流程', () => {
     if (baseline?.id) createdBaselineIds.push(baseline.id)
     await login(page)
     await page.goto('/baselines')
-    await expect(page.locator('.n-card-header__main').filter({ hasText: '基线列表' })).toBeVisible()
+    await expect(page.locator('.t-card__title').filter({ hasText: '基线列表' })).toBeVisible()
     await expect(page.locator('table')).toBeVisible()
   })
 
@@ -78,16 +82,16 @@ test.describe('基线管理流程', () => {
     await expect(page.locator('table')).toBeVisible()
     const editBtn = page.locator('table').getByRole('button', { name: '编辑' }).first()
     await editBtn.click()
-    await expect(page.locator('.n-dialog')).toBeVisible()
-    const textarea = page.locator('.n-form-item').filter({ hasText: '基线内容' }).locator('textarea')
+    await expect(page.locator('.t-dialog:visible')).toBeVisible()
+    const textarea = page.locator('.t-form__item').filter({ hasText: '基线内容' }).locator('textarea')
     await textarea.clear()
     await textarea.fill('hostname after-edit\ninterface Gig0/1\n ip address 10.0.0.1')
-    await page.locator('.n-dialog').getByRole('button', { name: '确定' }).click()
-    await page.waitForTimeout(2000)
+    await page.locator('.t-dialog:visible').getByRole('button', { name: '确定' }).click()
+    await expect(page.locator('.t-dialog:visible')).toBeHidden()
   })
 
   test('删除基线', async ({ page }) => {
-    const baseline = await createBaseline(token, {
+    await createBaseline(token, {
       scope: 'device',
       device_id: deviceId,
       content: 'hostname to-delete',
@@ -95,9 +99,13 @@ test.describe('基线管理流程', () => {
     await login(page)
     await page.goto('/baselines')
     await expect(page.locator('table')).toBeVisible()
+    const deleteResponse = page.waitForResponse(
+      (resp) => resp.url().includes('/baselines/') && resp.request().method() === 'DELETE',
+      { timeout: 10000 },
+    )
     const deleteBtn = page.locator('table').getByRole('button', { name: '删除' }).first()
     await deleteBtn.click()
     await page.getByRole('button', { name: '删除' }).last().click()
-    await page.waitForTimeout(2000)
+    await deleteResponse
   })
 })

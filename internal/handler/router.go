@@ -5,69 +5,65 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/netconfighub/netconfighub/internal/middleware"
-	"github.com/netconfighub/netconfighub/internal/repository"
 	"github.com/netconfighub/netconfighub/internal/service"
 )
 
-type BackupScheduler interface {
-	SubmitDevice(deviceID uint) error
-	SubmitGroup(groupID uint) error
+// RouterDeps groups the router's dependencies into a single parameter object.
+// The API-token middleware is assembled in cmd/api/main.go where the data layer
+// is available, so the router no longer depends on any repository package.
+type RouterDeps struct {
+	AdminService     service.AdminService
+	TokenService     service.APITokenService
+	AuthService      service.AuthService
+	DeviceService    service.DeviceService
+	GroupService     service.GroupService
+	BackupService    service.BackupService
+	BaselineService  service.BaselineService
+	DeviationService service.DeviationService
+	AlertService     service.AlertService
+	HookService      service.HookService
+	ConfigService    service.ConfigService
+	AuditService     service.AuditService
+	TokenAuth        gin.HandlerFunc
+	JWTSecret        string
+	LoginRateLimiter *middleware.RateLimiter
 }
 
 type Router struct {
-	adminService      service.AdminService
-	tokenService      service.APITokenService
-	authService       service.AuthService
-	deviceService     service.DeviceService
-	groupService      service.GroupService
-	backupService     service.BackupService
-	baselineService   service.BaselineService
-	deviationService  service.DeviationService
-	alertService      service.AlertService
-	hookService       service.HookService
-	configService     service.ConfigService
-	auditService      service.AuditService
-	scheduler         BackupScheduler
-	jwtSecret         string
-	tokenRepo         repository.APITokenRepository
-	loginRateLimiter  *middleware.RateLimiter
+	adminService     service.AdminService
+	tokenService     service.APITokenService
+	authService      service.AuthService
+	deviceService    service.DeviceService
+	groupService     service.GroupService
+	backupService    service.BackupService
+	baselineService  service.BaselineService
+	deviationService service.DeviationService
+	alertService     service.AlertService
+	hookService      service.HookService
+	configService    service.ConfigService
+	auditService     service.AuditService
+	jwtSecret        string
+	tokenAuth        gin.HandlerFunc
+	loginRateLimiter *middleware.RateLimiter
 }
 
-func NewRouter(
-	adminService service.AdminService,
-	tokenService service.APITokenService,
-	authService service.AuthService,
-	deviceService service.DeviceService,
-	groupService service.GroupService,
-	backupService service.BackupService,
-	baselineService service.BaselineService,
-	deviationService service.DeviationService,
-	alertService service.AlertService,
-	hookService service.HookService,
-	configService service.ConfigService,
-	auditService service.AuditService,
-	scheduler BackupScheduler,
-	jwtSecret string,
-	tokenRepo repository.APITokenRepository,
-	loginRateLimiter *middleware.RateLimiter,
-) *Router {
+func NewRouter(deps RouterDeps) *Router {
 	return &Router{
-		adminService:      adminService,
-		tokenService:      tokenService,
-		authService:       authService,
-		deviceService:     deviceService,
-		groupService:      groupService,
-		backupService:     backupService,
-		baselineService:   baselineService,
-		deviationService:  deviationService,
-		alertService:      alertService,
-		hookService:       hookService,
-		configService:     configService,
-		auditService:      auditService,
-		scheduler:         scheduler,
-		jwtSecret:         jwtSecret,
-		tokenRepo:         tokenRepo,
-		loginRateLimiter:  loginRateLimiter,
+		adminService:     deps.AdminService,
+		tokenService:     deps.TokenService,
+		authService:      deps.AuthService,
+		deviceService:    deps.DeviceService,
+		groupService:     deps.GroupService,
+		backupService:    deps.BackupService,
+		baselineService:  deps.BaselineService,
+		deviationService: deps.DeviationService,
+		alertService:     deps.AlertService,
+		hookService:      deps.HookService,
+		configService:    deps.ConfigService,
+		auditService:     deps.AuditService,
+		jwtSecret:        deps.JWTSecret,
+		tokenAuth:        deps.TokenAuth,
+		loginRateLimiter: deps.LoginRateLimiter,
 	}
 }
 
@@ -192,7 +188,7 @@ func (r *Router) Setup(engine *gin.Engine) {
 		}
 
 		tokenAuth := api.Group("/ext")
-		tokenAuth.Use(middleware.APITokenAuth(r.tokenRepo))
+		tokenAuth.Use(r.tokenAuth)
 		{
 			tokenAuth.GET("/devices", r.listDevices)
 			tokenAuth.POST("/devices/:id/backup", r.triggerBackup)

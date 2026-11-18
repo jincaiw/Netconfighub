@@ -1,51 +1,40 @@
 <template>
   <div class="failed-devices">
-    <n-card title="失败设备列表">
-      <template #header-extra>
-        <n-button type="primary" @click="handleRetryAll" :loading="retryingAll" :disabled="devices.length === 0">全部重试</n-button>
+    <t-card title="失败设备列表">
+      <template #actions>
+        <t-button theme="primary" :loading="retryingAll" :disabled="devices.length === 0" @click="handleRetryAll">
+          全部重试
+        </t-button>
       </template>
 
-      <n-spin :show="loading">
-        <n-empty v-if="!loading && devices.length === 0" description="暂无失败设备，所有设备备份正常">
-          <template #extra>
-            <n-button size="small" @click="router.push('/devices')">查看所有设备</n-button>
+      <t-loading :loading="loading">
+        <t-empty v-if="!loading && devices.length === 0" description="暂无失败设备，所有设备备份正常">
+          <template #action>
+            <t-button size="small" variant="outline" @click="router.push('/devices')">查看所有设备</t-button>
           </template>
-        </n-empty>
-        <n-data-table
+        </t-empty>
+        <t-table
           v-else
           :columns="columns"
           :data="devices"
-          :pagination="paginationReactive"
-          remote
-          @update:page="handlePageChange"
-          @update:page-size="handlePageSizeChange"
+          :pagination="tablePagination"
+          @page-change="handlePageChange"
         />
-      </n-spin>
-    </n-card>
+      </t-loading>
+    </t-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, h } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  NCard,
-  NDataTable,
-  NButton,
-  NSpace,
-  NEmpty,
-  NSpin,
-  useMessage,
-  useDialog,
-} from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
+import { Button, Space, DialogPlugin, MessagePlugin, type PrimaryTableCol } from 'tdesign-vue-next'
 import { getFailedDevices, triggerDeviceBackup } from '@/api/backup'
 import BackupStatus from '@/components/BackupStatus.vue'
 import type { Device } from '@/types'
 
 const router = useRouter()
-const message = useMessage()
-const dialog = useDialog()
+
 const loading = ref(false)
 const retryingAll = ref(false)
 const devices = ref<Device[]>([])
@@ -61,47 +50,57 @@ const paginationReactive = reactive({
   page: 1,
   pageSize: 20,
   itemCount: 0,
-  showSizePicker: true,
-  pageSizes: [10, 20, 50],
 })
 
-const columns: DataTableColumns<Device> = [
-  { title: '设备名称', key: 'name' },
-  { title: 'IP 地址', key: 'ip', width: 140 },
+const tablePagination = computed(() => ({
+  current: paginationReactive.page,
+  pageSize: paginationReactive.pageSize,
+  total: paginationReactive.itemCount,
+  showPageSize: true,
+  pageSizeOptions: [10, 20, 50],
+}))
+
+const columns: PrimaryTableCol<Device>[] = [
+  { title: '设备名称', colKey: 'name' },
+  { title: 'IP 地址', colKey: 'ip', width: 140 },
   {
     title: '厂商',
-    key: 'vendor',
+    colKey: 'vendor',
     width: 90,
-    render: (row) => vendorLabelMap[row.vendor] || row.vendor,
+    cell: (_h, { row }) => vendorLabelMap[row.vendor] || row.vendor,
   },
   {
     title: '备份状态',
-    key: 'last_backup_status',
+    colKey: 'last_backup_status',
     width: 100,
-    render: (row) => h(BackupStatus, { status: row.last_backup_status }),
+    cell: (h, { row }) => h(BackupStatus, { status: row.last_backup_status }),
   },
-  { title: '失败原因', key: 'last_failure_reason', ellipsis: { tooltip: true } },
-  { title: '重试次数', key: 'retry_count', width: 90 },
-  { title: '最近备份时间', key: 'last_backup_at', width: 170 },
+  { title: '失败原因', colKey: 'last_failure_reason', ellipsis: true },
+  { title: '重试次数', colKey: 'retry_count', width: 90 },
+  { title: '最近备份时间', colKey: 'last_backup_at', width: 170 },
   {
     title: '操作',
-    key: 'actions',
+    colKey: 'actions',
     width: 180,
-    render: (row) =>
-      h(NSpace, { size: 'small' }, {
-        default: () => [
-          h(
-            NButton,
-            { size: 'small', type: 'primary', onClick: () => handleRetry(row.id) },
-            { default: () => '重新备份' },
-          ),
-          h(
-            NButton,
-            { size: 'small', onClick: () => router.push(`/devices/${row.id}`) },
-            { default: () => '查看详情' },
-          ),
-        ],
-      }),
+    cell: (h, { row }) =>
+      h(
+        Space,
+        { size: 'small' },
+        {
+          default: () => [
+            h(
+              Button,
+              { size: 'small', theme: 'primary', onClick: () => handleRetry(row.id) },
+              { default: () => '重新备份' },
+            ),
+            h(
+              Button,
+              { size: 'small', onClick: () => router.push(`/devices/${row.id}`) },
+              { default: () => '查看详情' },
+            ),
+          ],
+        },
+      ),
   },
 ]
 
@@ -115,51 +114,49 @@ async function fetchFailedDevices() {
     devices.value = res.data.items
     paginationReactive.itemCount = res.data.total
   } catch {
-    message.error('获取失败设备列表失败')
+    MessagePlugin.error('获取失败设备列表失败')
   } finally {
     loading.value = false
   }
 }
 
-function handlePageChange(page: number) {
-  paginationReactive.page = page
-  fetchFailedDevices()
-}
-
-function handlePageSizeChange(pageSize: number) {
-  paginationReactive.pageSize = pageSize
-  paginationReactive.page = 1
+function handlePageChange(pageInfo: { current: number; pageSize: number }) {
+  if (pageInfo.pageSize && pageInfo.pageSize !== paginationReactive.pageSize) {
+    paginationReactive.pageSize = pageInfo.pageSize
+    paginationReactive.page = 1
+  } else {
+    paginationReactive.page = pageInfo.current
+  }
   fetchFailedDevices()
 }
 
 async function handleRetry(deviceId: number) {
   try {
     await triggerDeviceBackup(deviceId)
-    message.success('备份任务已触发')
+    MessagePlugin.success('备份任务已触发')
   } catch {
-    message.error('备份任务触发失败')
+    MessagePlugin.error('备份任务触发失败')
   }
 }
 
 async function handleRetryAll() {
-  dialog.warning({
-    title: '确认',
-    content: `确定要重新备份全部 ${devices.value.length} 台失败设备吗？`,
-    positiveText: '确定',
-    negativeText: '取消',
-    onPositiveClick: async () => {
+  const instance = DialogPlugin.confirm({
+    header: '确认',
+    body: `确定要重新备份全部 ${devices.value.length} 台失败设备吗？`,
+    confirmBtn: '确定',
+    cancelBtn: '取消',
+    onConfirm: async () => {
       retryingAll.value = true
       try {
-        const results = await Promise.allSettled(
-          devices.value.map(dev => triggerDeviceBackup(dev.id))
-        )
-        const succeeded = results.filter(r => r.status === 'fulfilled').length
-        const failed = results.filter(r => r.status === 'rejected').length
+        const results = await Promise.allSettled(devices.value.map((dev) => triggerDeviceBackup(dev.id)))
+        const succeeded = results.filter((r) => r.status === 'fulfilled').length
+        const failed = results.filter((r) => r.status === 'rejected').length
         if (failed === 0) {
-          message.success(`全部 ${succeeded} 台设备备份已触发`)
+          MessagePlugin.success(`全部 ${succeeded} 台设备备份已触发`)
         } else {
-          message.warning(`${succeeded} 台成功，${failed} 台失败`)
+          MessagePlugin.warning(`${succeeded} 台成功，${failed} 台失败`)
         }
+        instance.hide()
       } finally {
         retryingAll.value = false
       }

@@ -1,10 +1,16 @@
 VERSION ?= v0.1.2
 
-.PHONY: test build-web build-linux release-bundle docker-build verify
+.PHONY: test lint build-web build-linux release-bundle docker-build verify e2e
 
 test:
 	go test ./...
 	go vet ./...
+
+lint:
+	cd web && npm run lint
+
+e2e:
+	cd web && npx playwright test
 
 build-web:
 	cd web && npm ci && npm run build
@@ -22,5 +28,4 @@ docker-build:
 		-t qing1205/netconfighub:$(VERSION:v%=%) \
 		-t qing1205/netconfighub:latest .
 
-verify: test build-web
-	cd web && npx playwright test
+verify: test lint build-web e2e

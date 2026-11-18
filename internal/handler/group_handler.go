@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/netconfighub/netconfighub/internal/apperr"
 	"github.com/netconfighub/netconfighub/internal/model"
 )
 
@@ -132,13 +134,12 @@ func (r *Router) triggerGroupBackup(c *gin.Context) {
 		return
 	}
 
-	if r.scheduler == nil {
-		Error(c, http.StatusInternalServerError, 500, "调度器未初始化")
-		return
-	}
-
-	if err := r.scheduler.SubmitGroup(uint(id)); err != nil {
-		if strings.Contains(err.Error(), "分组下没有设备") {
+	if err := r.backupService.TriggerGroupBackupFromAPI(c.Request.Context(), uint(id)); err != nil {
+		if errors.Is(err, apperr.ErrSchedulerDown) {
+			Error(c, http.StatusInternalServerError, 500, "调度器未初始化")
+			return
+		}
+		if errors.Is(err, apperr.ErrGroupNoDevices) || strings.Contains(err.Error(), "分组下没有设备") {
 			BadRequest(c, "分组下没有设备")
 			return
 		}

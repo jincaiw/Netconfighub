@@ -1,131 +1,137 @@
 <template>
   <div class="settings">
-    <n-grid :x-gap="16" :y-gap="16" :cols="1">
-      <n-gi>
-        <n-card title="修改密码">
-          <n-form :model="passwordForm" label-placement="left" label-width="100">
-            <n-form-item label="旧密码">
-              <n-input v-model:value="passwordForm.old_password" type="password" show-password-on="click" placeholder="请输入当前密码" style="width: 300px" />
-            </n-form-item>
-            <n-form-item label="新密码">
-              <n-input v-model:value="passwordForm.new_password" type="password" show-password-on="click" placeholder="请输入新密码（至少6位）" style="width: 300px" />
-            </n-form-item>
-            <n-form-item label="确认新密码">
-              <n-input v-model:value="passwordForm.confirm_password" type="password" show-password-on="click" placeholder="请再次输入新密码" style="width: 300px" />
-            </n-form-item>
-            <n-form-item>
-              <n-button type="primary" @click="handleChangePassword" :loading="changingPassword">修改密码</n-button>
-            </n-form-item>
-          </n-form>
-        </n-card>
-      </n-gi>
+    <t-alert
+      v-if="configLoadFailed"
+      theme="error"
+      message="系统配置加载失败，保存已锁定。请重试后再保存，避免用默认值覆盖服务端配置。"
+      style="margin-bottom: 16px"
+    >
+      <template #operation>
+        <t-button size="small" variant="outline" :loading="configLoading" @click="fetchSystemConfigs">重试</t-button>
+      </template>
+    </t-alert>
+    <t-row :gutter="[16, 16]">
+      <t-col :xs="12">
+        <t-card title="修改密码">
+          <t-form :data="passwordForm" label-align="left" label-width="100px">
+            <t-form-item label="旧密码">
+              <t-input
+                v-model="passwordForm.old_password"
+                type="password"
+                placeholder="请输入当前密码"
+                style="width: 300px"
+              />
+            </t-form-item>
+            <t-form-item label="新密码">
+              <t-input
+                v-model="passwordForm.new_password"
+                type="password"
+                placeholder="请输入新密码（至少6位）"
+                style="width: 300px"
+              />
+            </t-form-item>
+            <t-form-item label="确认新密码">
+              <t-input
+                v-model="passwordForm.confirm_password"
+                type="password"
+                placeholder="请再次输入新密码"
+                style="width: 300px"
+              />
+            </t-form-item>
+            <t-form-item>
+              <t-button theme="primary" :loading="changingPassword" @click="handleChangePassword">修改密码</t-button>
+            </t-form-item>
+          </t-form>
+        </t-card>
+      </t-col>
 
-      <n-gi>
-        <n-card title="API Token 管理">
-          <template #header-extra>
-            <n-button type="primary" @click="openCreateTokenModal">创建 Token</n-button>
+      <t-col :xs="12">
+        <t-card title="API Token 管理">
+          <template #actions>
+            <t-button theme="primary" @click="openCreateTokenModal">创建 Token</t-button>
           </template>
-          <n-data-table :columns="tokenColumns" :data="tokens" :loading="tokensLoading" size="small" />
-        </n-card>
-      </n-gi>
+          <t-table :columns="tokenColumns" :data="tokens" :loading="tokensLoading" row-key="id" size="small">
+            <template #empty>暂无数据</template>
+          </t-table>
+        </t-card>
+      </t-col>
 
-      <n-gi>
-        <n-card title="备份策略配置">
-          <n-form :model="backupConfig" label-placement="left" label-width="140">
-            <n-form-item label="默认备份间隔(小时)">
-              <n-input-number v-model:value="backupConfig.interval" :min="1" :max="720" style="width: 200px" />
-            </n-form-item>
-            <n-form-item>
-              <n-button type="primary" @click="handleSaveConfig" :loading="savingConfig">保存配置</n-button>
-            </n-form-item>
-          </n-form>
-        </n-card>
-      </n-gi>
+      <t-col :xs="12">
+        <t-card title="备份策略配置">
+          <t-form :data="backupConfig" label-align="left" label-width="140px">
+            <t-form-item label="默认备份间隔(小时)">
+              <t-input-number v-model="backupConfig.interval" :min="1" :max="720" style="width: 200px" />
+            </t-form-item>
+            <t-form-item>
+              <t-button theme="primary" :loading="savingConfig" :disabled="!configLoaded" @click="handleSaveConfig">保存配置</t-button>
+            </t-form-item>
+          </t-form>
+        </t-card>
+      </t-col>
 
-      <n-gi>
-        <n-card title="配置脱敏">
-          <n-form :model="sanitizeConfig" label-placement="left" label-width="180">
-            <n-form-item label="启用配置脱敏">
-              <n-switch v-model:value="sanitizeConfig.enabled" />
-            </n-form-item>
-            <n-form-item label="脱敏密码字段">
-              <n-switch v-model:value="sanitizeConfig.mask_passwords" :disabled="!sanitizeConfig.enabled" />
-            </n-form-item>
-            <n-form-item label="脱敏 SNMP Community">
-              <n-switch v-model:value="sanitizeConfig.mask_snmp_community" :disabled="!sanitizeConfig.enabled" />
-            </n-form-item>
-            <n-form-item label="脱敏 Enable Secret">
-              <n-switch v-model:value="sanitizeConfig.mask_enable_secret" :disabled="!sanitizeConfig.enabled" />
-            </n-form-item>
-            <n-form-item>
-              <n-button type="primary" @click="handleSaveSanitizeConfig" :loading="savingSanitize">保存脱敏配置</n-button>
-            </n-form-item>
-          </n-form>
-        </n-card>
-      </n-gi>
-    </n-grid>
+      <t-col :xs="12">
+        <t-card title="配置脱敏">
+          <t-form :data="sanitizeConfig" label-align="left" label-width="180px">
+            <t-form-item label="启用配置脱敏">
+              <t-switch v-model="sanitizeConfig.enabled" />
+            </t-form-item>
+            <t-form-item label="脱敏密码字段">
+              <t-switch v-model="sanitizeConfig.mask_passwords" :disabled="!sanitizeConfig.enabled" />
+            </t-form-item>
+            <t-form-item label="脱敏 SNMP Community">
+              <t-switch v-model="sanitizeConfig.mask_snmp_community" :disabled="!sanitizeConfig.enabled" />
+            </t-form-item>
+            <t-form-item label="脱敏 Enable Secret">
+              <t-switch v-model="sanitizeConfig.mask_enable_secret" :disabled="!sanitizeConfig.enabled" />
+            </t-form-item>
+            <t-form-item>
+              <t-button theme="primary" :loading="savingSanitize" :disabled="!configLoaded" @click="handleSaveSanitizeConfig">保存脱敏配置</t-button>
+            </t-form-item>
+          </t-form>
+        </t-card>
+      </t-col>
+    </t-row>
 
-    <n-modal v-model:show="showCreateToken" preset="dialog" title="创建 API Token" style="width: 440px">
-      <n-form label-placement="left" label-width="80">
-        <n-form-item label="Token 名称">
-          <n-input v-model:value="newTokenName" placeholder="请输入 Token 名称" />
-        </n-form-item>
-        <n-form-item label="过期时间">
-          <n-date-picker
-            v-model:value="newTokenExpiresAt"
-            type="datetime"
+    <t-dialog v-model:visible="showCreateToken" header="创建 API Token" :width="440">
+      <t-form label-align="left" label-width="80px">
+        <t-form-item label="Token 名称">
+          <t-input v-model="newTokenName" placeholder="请输入 Token 名称" />
+        </t-form-item>
+        <t-form-item label="过期时间">
+          <t-date-picker
+            v-model="newTokenExpiresAt"
+            enable-time-picker
+            format="YYYY-MM-DD HH:mm:ss"
             placeholder="请选择过期时间"
             style="width: 100%"
-            :is-date-disabled="(ts: number) => ts < Date.now()"
+            :disable-date="(date: any) => new Date(date).getTime() < Date.now()"
           />
-        </n-form-item>
-      </n-form>
-      <template #action>
-        <n-button @click="showCreateToken = false">取消</n-button>
-        <n-button type="primary" :loading="creatingToken" @click="handleCreateToken">创建</n-button>
+        </t-form-item>
+      </t-form>
+      <template #footer>
+        <t-button variant="outline" @click="showCreateToken = false">取消</t-button>
+        <t-button theme="primary" :loading="creatingToken" @click="handleCreateToken">创建</t-button>
       </template>
-    </n-modal>
+    </t-dialog>
 
-    <n-modal v-model:show="showTokenResult" preset="dialog" title="Token 创建成功" :closable="false" style="width: 520px">
-      <n-alert type="warning" style="margin-bottom: 16px">
-        请立即复制 Token，关闭后将无法再次查看。
-      </n-alert>
-      <n-input :value="newlyCreatedToken" readonly type="textarea" :rows="3" />
-      <template #action>
-        <n-button type="primary" @click="handleCopyToken">复制 Token</n-button>
-        <n-button @click="showTokenResult = false">关闭</n-button>
+    <t-dialog v-model:visible="showTokenResult" header="Token 创建成功" :close-btn="false" :width="520">
+      <t-alert theme="warning" message="请立即复制 Token，关闭后将无法再次查看。" style="margin-bottom: 16px" />
+      <t-textarea v-model="newlyCreatedToken" :autosize="{ minRows: 3 }" readonly />
+      <template #footer>
+        <t-button theme="primary" @click="handleCopyToken">复制 Token</t-button>
+        <t-button variant="outline" @click="showTokenResult = false">关闭</t-button>
       </template>
-    </n-modal>
+    </t-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, h, onMounted } from 'vue'
-import {
-  NGrid,
-  NGi,
-  NCard,
-  NForm,
-  NFormItem,
-  NInput,
-  NInputNumber,
-  NButton,
-  NDataTable,
-  NModal,
-  NAlert,
-  NDatePicker,
-  NSwitch,
-  useMessage,
-  useDialog,
-} from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
+import { ref, reactive, onMounted } from 'vue'
+import { Button, DialogPlugin, MessagePlugin, type PrimaryTableCol } from 'tdesign-vue-next'
 import { getTokens, createToken, deleteToken } from '@/api/token'
 import { getConfigs, setConfig } from '@/api/config'
 import { changePassword } from '@/api/auth'
 import type { ApiToken } from '@/types'
-
-const message = useMessage()
-const dialog = useDialog()
 
 const tokens = ref<ApiToken[]>([])
 const tokensLoading = ref(false)
@@ -138,6 +144,9 @@ const creatingToken = ref(false)
 const savingSanitize = ref(false)
 const savingConfig = ref(false)
 const changingPassword = ref(false)
+const configLoading = ref(false)
+const configLoaded = ref(false)
+const configLoadFailed = ref(false)
 
 const passwordForm = reactive({
   old_password: '',
@@ -156,18 +165,18 @@ const sanitizeConfig = reactive({
   mask_enable_secret: true,
 })
 
-const tokenColumns: DataTableColumns<ApiToken> = [
-  { title: '名称', key: 'name', width: 160 },
-  { title: '创建时间', key: 'created_at', width: 180 },
-  { title: '过期时间', key: 'expires_at', width: 180 },
+const tokenColumns: PrimaryTableCol<ApiToken>[] = [
+  { title: '名称', colKey: 'name', width: 160 },
+  { title: '创建时间', colKey: 'created_at', width: 180 },
+  { title: '过期时间', colKey: 'expires_at', width: 180 },
   {
     title: '操作',
-    key: 'actions',
+    colKey: 'actions',
     width: 80,
-    render: (row) =>
+    cell: (h, { row }) =>
       h(
-        NButton,
-        { size: 'small', type: 'error', onClick: () => handleDeleteToken(row) },
+        Button,
+        { size: 'small', theme: 'danger', variant: 'outline', onClick: () => handleDeleteToken(row) },
         { default: () => '删除' },
       ),
   },
@@ -179,7 +188,7 @@ async function fetchTokens() {
     const res = await getTokens()
     tokens.value = res.data
   } catch {
-    message.error('获取 Token 列表失败')
+    MessagePlugin.error('获取 Token 列表失败')
   } finally {
     tokensLoading.value = false
   }
@@ -192,18 +201,19 @@ function openCreateTokenModal() {
 }
 
 function handleDeleteToken(token: ApiToken) {
-  dialog.warning({
-    title: '确认删除',
-    content: `确定要删除 Token "${token.name}" 吗？删除后使用该 Token 的应用将无法访问 API。`,
-    positiveText: '删除',
-    negativeText: '取消',
-    onPositiveClick: async () => {
+  DialogPlugin.confirm({
+    header: '确认删除',
+    body: `确定要删除 Token "${token.name}" 吗？删除后使用该 Token 的应用将无法访问 API。`,
+    theme: 'warning',
+    confirmBtn: '删除',
+    cancelBtn: '取消',
+    onConfirm: async () => {
       try {
         await deleteToken(token.id)
-        message.success('Token 已删除')
+        MessagePlugin.success('Token 已删除')
         fetchTokens()
       } catch {
-        message.error('Token 删除失败')
+        MessagePlugin.error('Token 删除失败')
       }
     },
   })
@@ -211,11 +221,11 @@ function handleDeleteToken(token: ApiToken) {
 
 async function handleCreateToken() {
   if (!newTokenName.value.trim()) {
-    message.warning('请输入 Token 名称')
+    MessagePlugin.warning('请输入 Token 名称')
     return
   }
   if (!newTokenExpiresAt.value) {
-    message.warning('请选择过期时间')
+    MessagePlugin.warning('请选择过期时间')
     return
   }
 
@@ -228,7 +238,7 @@ async function handleCreateToken() {
     showTokenResult.value = true
     fetchTokens()
   } catch {
-    message.error('Token 创建失败')
+    MessagePlugin.error('Token 创建失败')
   } finally {
     creatingToken.value = false
   }
@@ -236,19 +246,23 @@ async function handleCreateToken() {
 
 function handleCopyToken() {
   navigator.clipboard.writeText(newlyCreatedToken.value).then(() => {
-    message.success('Token 已复制到剪贴板')
+    MessagePlugin.success('Token 已复制到剪贴板')
   }).catch(() => {
-    message.error('复制失败')
+    MessagePlugin.error('复制失败')
   })
 }
 
 async function handleSaveConfig() {
+  if (!configLoaded.value) {
+    MessagePlugin.warning('系统配置尚未加载成功，无法保存')
+    return
+  }
   savingConfig.value = true
   try {
     await setConfig('backup_interval', `${backupConfig.interval}h`)
-    message.success('备份策略已保存')
+    MessagePlugin.success('备份策略已保存')
   } catch {
-    message.error('保存配置失败')
+    MessagePlugin.error('保存配置失败')
   } finally {
     savingConfig.value = false
   }
@@ -256,21 +270,21 @@ async function handleSaveConfig() {
 
 async function handleChangePassword() {
   if (!passwordForm.old_password) {
-    message.warning('请输入旧密码')
+    MessagePlugin.warning('请输入旧密码')
     return
   }
   if (!passwordForm.new_password || passwordForm.new_password.length < 6) {
-    message.warning('新密码至少6位')
+    MessagePlugin.warning('新密码至少6位')
     return
   }
   if (passwordForm.new_password !== passwordForm.confirm_password) {
-    message.warning('两次输入的新密码不一致')
+    MessagePlugin.warning('两次输入的新密码不一致')
     return
   }
   changingPassword.value = true
   try {
     await changePassword({ old_password: passwordForm.old_password, new_password: passwordForm.new_password })
-    message.success('密码修改成功，请重新登录')
+    MessagePlugin.success('密码修改成功，请重新登录')
     passwordForm.old_password = ''
     passwordForm.new_password = ''
     passwordForm.confirm_password = ''
@@ -279,13 +293,16 @@ async function handleChangePassword() {
     }, 1500)
   } catch (err: any) {
     const msg = err?.response?.data?.message || '密码修改失败'
-    message.error(msg)
+    MessagePlugin.error(msg)
   } finally {
     changingPassword.value = false
   }
 }
 
 async function fetchSystemConfigs() {
+  configLoading.value = true
+  configLoaded.value = false
+  configLoadFailed.value = false
   try {
     const res = await getConfigs()
     const configs = res.data
@@ -300,10 +317,20 @@ async function fetchSystemConfigs() {
     if (maskSnmp) sanitizeConfig.mask_snmp_community = maskSnmp.value === 'true'
     const maskEnable = findConfig('sanitize.mask_enable_secret')
     if (maskEnable) sanitizeConfig.mask_enable_secret = maskEnable.value === 'true'
-  } catch {}
+    configLoaded.value = true
+  } catch {
+    configLoadFailed.value = true
+    MessagePlugin.error('系统配置加载失败，已锁定保存，请重试')
+  } finally {
+    configLoading.value = false
+  }
 }
 
 async function handleSaveSanitizeConfig() {
+  if (!configLoaded.value) {
+    MessagePlugin.warning('系统配置尚未加载成功，无法保存')
+    return
+  }
   savingSanitize.value = true
   try {
     await Promise.all([
@@ -312,9 +339,9 @@ async function handleSaveSanitizeConfig() {
       setConfig('sanitize.mask_snmp_community', String(sanitizeConfig.mask_snmp_community)),
       setConfig('sanitize.mask_enable_secret', String(sanitizeConfig.mask_enable_secret)),
     ])
-    message.success('脱敏配置已保存')
+    MessagePlugin.success('脱敏配置已保存')
   } catch {
-    message.error('保存脱敏配置失败')
+    MessagePlugin.error('保存脱敏配置失败')
   } finally {
     savingSanitize.value = false
   }

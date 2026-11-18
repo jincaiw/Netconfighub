@@ -3,10 +3,16 @@ package collector
 import (
 	"bytes"
 	"fmt"
+	"log"
+	"net"
+	"os"
+	"strings"
 	"time"
 
+	"github.com/netconfighub/netconfighub/internal/apperr"
 	"github.com/netconfighub/netconfighub/internal/model"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/crypto/ssh/knownhosts"
 )
 
 type SSHCollector struct {
@@ -21,16 +27,35 @@ func NewSSHCollector(timeout time.Duration) *SSHCollector {
 	}
 }
 
+// buildHostKeyCallback returns a strict known_hosts based verifier by default.
+// Skipping verification requires an explicit development-only opt-in.
+func buildHostKeyCallback() (ssh.HostKeyCallback, error) {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("NCH_SSH_ALLOW_INSECURE")), "true") {
+		log.Printf("警告: NCH_SSH_ALLOW_INSECURE=true，SSH 主机密钥校验已关闭（仅限开发环境）")
+		return func(hostname string, remote net.Addr, key ssh.PublicKey) error { return nil }, nil
+	}
+	knownHostsPath := strings.TrimSpace(os.Getenv("NCH_SSH_KNOWN_HOSTS"))
+	if knownHostsPath == "" {
+		return nil, fmt.Errorf("未配置 NCH_SSH_KNOWN_HOSTS；如确需跳过校验请显式设置 NCH_SSH_ALLOW_INSECURE=true")
+	}
+	return knownhosts.New(knownHostsPath)
+}
+
 func (c *SSHCollector) Collect(device model.Device) (string, error) {
 	adapter, err := GetAdapter(device.Vendor)
 	if err != nil {
 		return "", fmt.Errorf("获取厂商适配器失败: %w", err)
 	}
 
+	hostKeyCallback, err := buildHostKeyCallback()
+	if err != nil {
+		return "", apperr.WrapCause(apperr.ErrConnectTimeout, err, "SSH 主机密钥策略不可用: %v", err)
+	}
+
 	sshConfig := &ssh.ClientConfig{
 		Timeout:         c.connectTimeout,
 		User:            device.Username,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: hostKeyCallback,
 	}
 
 	if device.SSHKey != "" {
@@ -46,7 +71,7 @@ func (c *SSHCollector) Collect(device model.Device) (string, error) {
 	addr := fmt.Sprintf("%s:%d", device.IP, device.Port)
 	client, err := ssh.Dial("tcp", addr, sshConfig)
 	if err != nil {
-		return "", fmt.Errorf("SSH 连接失败 [%s]: %w", addr, err)
+		return "", apperr.WrapCause(apperr.ErrConnectTimeout, err, "SSH 连接失败 [%s]: %v", addr, err)
 	}
 	defer client.Close()
 
@@ -103,7 +128,7 @@ func (c *SSHCollector) Collect(device model.Device) (string, error) {
 		case <-done:
 		case <-time.After(c.commandTimeout):
 			session.Close()
-			return "", fmt.Errorf("命令执行超时")
+			return "", apperr.Wrap(apperr.ErrCommandTimeout, "命令执行超时")
 		}
 
 		config, err := adapter.ParseOutput(buf.String())
@@ -135,6 +160,6 @@ func (c *SSHCollector) Collect(device model.Device) (string, error) {
 		return config, nil
 	case <-time.After(c.commandTimeout):
 		session.Close()
-		return "", fmt.Errorf("命令执行超时 [%s]", command)
+		return "", apperr.Wrapf(apperr.ErrCommandTimeout, "命令执行超时 [%s]", command)
 	}
 }

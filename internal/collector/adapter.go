@@ -1,10 +1,10 @@
 package collector
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 
+	"github.com/netconfighub/netconfighub/internal/apperr"
 	"github.com/netconfighub/netconfighub/internal/devicemodel"
 	"github.com/netconfighub/netconfighub/internal/model"
 )
@@ -32,7 +32,7 @@ func RegisterAdapter(adapter VendorAdapter) {
 func GetAdapter(vendor model.Vendor) (VendorAdapter, error) {
 	adapter, ok := adapterRegistry[vendor]
 	if !ok {
-		return nil, fmt.Errorf("不支持的厂商类型: %s", vendor)
+		return nil, apperr.Wrapf(apperr.ErrModelNotFound, "不支持的厂商类型: %s", vendor)
 	}
 	return adapter, nil
 }

@@ -13,7 +13,9 @@ test.describe('设置页面', () => {
     for (const id of createdTokenIds) {
       try {
         await deleteApiToken(token, id)
-      } catch {}
+      } catch {
+      // cleanup is best-effort
+    }
     }
   })
 
@@ -29,19 +31,20 @@ test.describe('设置页面', () => {
     await page.goto('/settings')
     await expect(page.getByText('API Token 管理')).toBeVisible()
     await page.getByRole('button', { name: '创建 Token' }).click()
-    await expect(page.locator('.n-dialog')).toBeVisible()
+    await expect(page.locator('.t-dialog:visible')).toBeVisible()
     await page.getByPlaceholder('请输入 Token 名称').fill(`e2e-token-${Date.now()}`)
-    await page.locator('.n-date-picker').locator('input').click()
-    await page.waitForTimeout(500)
-    await page.locator('.n-date-panel-dates .n-date-panel-date:not(.n-date-panel-date--disabled)').last().click()
-    await page.waitForTimeout(300)
-    await page.locator('.n-date-panel-actions .n-button').filter({ hasText: 'Confirm' }).click()
-    await page.waitForTimeout(500)
-    await page.locator('.n-dialog').getByRole('button', { name: '创建', exact: true }).click()
-    await page.waitForTimeout(3000)
-    const successDialog = page.locator('.n-dialog').getByText('Token 创建成功')
-    const hasSuccess = await successDialog.isVisible().catch(() => false)
-    expect(hasSuccess).toBeTruthy()
+    await page.locator('.t-date-picker').locator('input').click()
+    const dateCell = page.locator('.t-date-picker__cell:not(.t-date-picker__cell--disabled)').last()
+    await expect(dateCell).toBeVisible()
+    await dateCell.click()
+    const dateConfirm = page.locator('.t-date-picker__footer .t-button').filter({ hasText: '确定' })
+    if (await dateConfirm.count() > 0) {
+      await expect(dateConfirm).toBeVisible()
+      await dateConfirm.click()
+    }
+    await page.locator('.t-dialog:visible').getByRole('button', { name: '创建', exact: true }).click()
+    const successDialog = page.locator('.t-dialog:visible').getByText('Token 创建成功')
+    await expect(successDialog).toBeVisible({ timeout: 5000 })
   })
 
   test('查看 Token 列表', async ({ page }) => {
@@ -67,6 +70,29 @@ test.describe('设置页面', () => {
     const row = page.locator('tr').filter({ hasText: apiToken.name })
     await row.getByRole('button', { name: '删除' }).click()
     await page.getByRole('button', { name: '删除' }).last().click()
-    await page.waitForTimeout(2000)
+    await expect(page.locator('tr').filter({ hasText: apiToken.name })).toHaveCount(0)
+  })
+
+  test('系统配置加载失败时报错并锁定保存，重试后恢复', async ({ page }) => {
+    let fail = true
+    await page.goto('/login')
+    await page.route(/\/api\/v1\/configs(?:\?|$)/, (route) =>
+      route.request().method() === 'GET' && fail
+        ? route.fulfill({ status: 500, json: { code: 500, message: 'boom' } })
+        : route.continue(),
+    )
+    await login(page)
+    await page.goto('/settings')
+
+    await expect(page.locator('.t-alert:visible').filter({ hasText: '系统配置加载失败' })).toBeVisible()
+    const saveConfig = page.getByRole('button', { name: '保存配置' })
+    const saveSanitize = page.getByRole('button', { name: '保存脱敏配置' })
+    await expect(saveConfig).toBeDisabled()
+    await expect(saveSanitize).toBeDisabled()
+
+    fail = false
+    await page.getByRole('button', { name: '重试' }).click()
+    await expect(saveConfig).toBeEnabled({ timeout: 10000 })
+    await expect(saveSanitize).toBeEnabled({ timeout: 10000 })
   })
 })

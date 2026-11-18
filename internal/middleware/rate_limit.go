@@ -14,6 +14,7 @@ type RateLimiter struct {
 	rate     int
 	window   time.Duration
 	stopCh   chan struct{}
+	stopOnce sync.Once
 }
 
 type visitorInfo struct {
@@ -32,8 +33,12 @@ func NewRateLimiter(rate int, window time.Duration) *RateLimiter {
 	return rl
 }
 
+// Stop is idempotent: repeated calls (including from shutdown and tests) never
+// close the channel twice.
 func (rl *RateLimiter) Stop() {
-	close(rl.stopCh)
+	rl.stopOnce.Do(func() {
+		close(rl.stopCh)
+	})
 }
 
 func (rl *RateLimiter) cleanup() {

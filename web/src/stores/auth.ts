@@ -1,11 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { login as loginApi, logout as logoutApi } from '@/api/auth'
-import { getToken, setToken, removeToken, setTokenExpiry, isTokenExpired, getUsername, setUsername } from '@/utils/token'
+import { login as loginApi, logout as logoutApi, refreshToken as refreshTokenApi } from '@/api/auth'
+import { reactiveToken, setToken, removeToken, setTokenExpiry, isTokenExpired, getUsername, setUsername } from '@/utils/token'
 import type { LoginRequest } from '@/types'
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(getToken())
+  // 从 utils/token 的共享响应式来源派生，api 层刷新写入后自动同步。
+  const token = reactiveToken
   const username = ref<string | null>(getUsername())
 
   const isLoggedIn = computed(() => !!token.value)
@@ -17,7 +18,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(credentials: LoginRequest) {
     const res = await loginApi(credentials)
-    token.value = res.data.token
     setToken(res.data.token)
     if (res.data.expires_at) {
       setTokenExpiry(res.data.expires_at)
@@ -26,13 +26,24 @@ export const useAuthStore = defineStore('auth', () => {
     setUsername(credentials.username)
   }
 
+  // utils/token 持有单一响应式来源，api 层 401 刷新写入后此处自动派生更新。
+  async function refresh() {
+    const newToken = await refreshTokenApi()
+    if (newToken) {
+      setToken(newToken)
+    } else {
+      removeToken()
+      username.value = null
+    }
+    return token.value
+  }
+
   async function logout() {
     try {
       await logoutApi()
     } finally {
-      token.value = null
-      username.value = null
       removeToken()
+      username.value = null
     }
   }
 
@@ -42,6 +53,7 @@ export const useAuthStore = defineStore('auth', () => {
     isLoggedIn,
     isAuthenticated,
     login,
+    refresh,
     logout,
   }
 })

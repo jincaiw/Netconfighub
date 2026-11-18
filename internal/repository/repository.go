@@ -31,6 +31,7 @@ type GroupRepository interface {
 	Create(ctx context.Context, group *model.Group) error
 	FindByID(ctx context.Context, id uint) (*model.Group, error)
 	List(ctx context.Context, offset, limit int) ([]model.Group, int64, error)
+	ListAllNames(ctx context.Context, limit int) ([]model.Group, error)
 	Update(ctx context.Context, group *model.Group) error
 	Delete(ctx context.Context, id uint) error
 }

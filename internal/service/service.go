@@ -48,6 +48,9 @@ type BackupService interface {
 	GetByID(ctx context.Context, id uint) (*model.BackupTask, error)
 	List(ctx context.Context, deviceID *uint, status *model.BackupStatus, offset, limit int) ([]model.BackupTask, int64, error)
 	GetConfig(ctx context.Context, taskID uint) (string, error)
+	SetScheduler(scheduler BackupScheduler)
+	TriggerBackupFromAPI(ctx context.Context, deviceID uint) error
+	TriggerGroupBackupFromAPI(ctx context.Context, groupID uint) error
 }
 
 type BaselineService interface {

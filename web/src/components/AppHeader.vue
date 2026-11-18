@@ -1,95 +1,188 @@
 <template>
   <div class="app-header">
     <div class="header-left">
-      <n-button quaternary @click="appStore.toggleSidebar">
+      <t-button
+        variant="text"
+        shape="square"
+        :aria-label="appStore.sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+        :aria-expanded="!appStore.sidebarCollapsed"
+        @click="appStore.toggleSidebar"
+      >
         <template #icon>
-          <n-icon><MenuOutline /></n-icon>
+          <MenuFoldIcon v-if="!appStore.sidebarCollapsed" />
+          <MenuUnfoldIcon v-else />
         </template>
-      </n-button>
-      <n-breadcrumb>
-        <n-breadcrumb-item v-for="item in breadcrumbItems" :key="item.label">
+      </t-button>
+      <t-breadcrumb>
+        <t-breadcrumb-item v-for="item in breadcrumbItems" :key="item.label">
           {{ item.label }}
-        </n-breadcrumb-item>
-      </n-breadcrumb>
+        </t-breadcrumb-item>
+      </t-breadcrumb>
     </div>
+
     <div class="header-right">
-      <n-space align="center" :size="12">
-        <n-popover trigger="click" placement="bottom-end" :width="380">
-          <template #trigger>
-            <n-badge :value="unreadCount" :max="99" :show="unreadCount > 0">
-              <n-button quaternary size="small">
-                <template #icon>
-                  <n-icon size="20"><NotificationsOutline /></n-icon>
-                </template>
-              </n-button>
-            </n-badge>
-          </template>
-          <div class="alert-panel">
-            <div class="alert-panel-header">
-              <span class="alert-panel-title">告警通知</span>
-              <n-button v-if="unreadCount > 0" text type="primary" size="tiny" @click="handleMarkAllRead">
-                全部已读
-              </n-button>
-            </div>
-            <n-divider style="margin: 4px 0" />
-            <div class="alert-list">
-              <div v-if="alerts.length === 0" class="alert-empty">暂无告警</div>
-              <div
-                v-for="alert in alerts"
-                :key="alert.id"
-                class="alert-item"
-                :class="{ 'alert-unread': !alert.is_read }"
-                @click="handleMarkRead(alert)"
-              >
-                <div class="alert-icon">
-                  <n-icon size="18" :color="alert.type === 'backup_failed' ? '#d03050' : '#f0a020'">
-                    <AlertCircleOutline v-if="alert.type === 'backup_failed'" />
-                    <WarningOutline v-else />
-                  </n-icon>
-                </div>
-                <div class="alert-content">
-                  <div class="alert-title">{{ alert.title }}</div>
-                  <div class="alert-message">{{ alert.message }}</div>
-                  <div class="alert-time">{{ formatTime(alert.created_at) }}</div>
+      <t-space align="center" :size="12">
+        <t-dropdown
+          trigger="click"
+          placement="bottom-right"
+          :popup-props="alertPopupProps"
+          :hide-after-item-click="false"
+        >
+          <t-badge :count="unreadCount" :offset="[4, 4]">
+            <t-button variant="text" shape="square" aria-label="告警通知" :aria-expanded="alertDropdownOpen">
+              <template #icon>
+                <NotificationIcon size="20px" />
+              </template>
+            </t-button>
+          </t-badge>
+          <template #dropdown>
+            <!-- TDesign 1.20 的 dropdown 仅从 menu item 提取面板内容；纯 div 会被过滤，故包一层 item。 -->
+            <t-dropdown-item class="alert-dropdown-item">
+              <div class="alert-panel">
+              <div class="alert-panel-header">
+                <span class="alert-panel-title">告警通知</span>
+                <t-button
+                  v-if="unreadCount > 0"
+                  variant="text"
+                  theme="primary"
+                  size="small"
+                  @click="handleMarkAllRead"
+                >
+                  全部已读
+                </t-button>
+              </div>
+              <t-divider style="margin: 4px 0" />
+              <div v-if="pollError || listError" class="alert-error" role="status">
+                <span>告警加载失败，请重试</span>
+                <t-button size="small" variant="text" theme="primary" @click="handleRetry">重试</t-button>
+              </div>
+              <div class="alert-list">
+                <div v-if="alerts.length === 0" class="alert-empty">暂无告警</div>
+                <div
+                  v-for="alert in alerts"
+                  :key="alert.id"
+                  class="alert-item"
+                  :class="{ 'alert-unread': !alert.is_read }"
+                  role="button"
+                  tabindex="0"
+                  :aria-label="`${alert.title}，${alert.message}，${alert.is_read ? '已读' : '未读'}`"
+                  @click="handleMarkRead(alert)"
+                  @keydown.enter="handleMarkRead(alert)"
+                  @keydown.space.prevent="handleMarkRead(alert)"
+                >
+                  <span v-if="!alert.is_read" class="alert-unread-dot" aria-hidden="true" />
+                  <span v-if="!alert.is_read" class="sr-only">未读</span>
+                  <div class="alert-icon">
+                    <ErrorCircleIcon
+                      v-if="alert.type === 'backup_failed'"
+                      size="18px"
+                      style="color: var(--td-error-color-6)"
+                    />
+                    <ErrorTriangleIcon v-else size="18px" style="color: var(--td-warning-color-5)" />
+                  </div>
+                  <div class="alert-content">
+                    <div class="alert-title">{{ alert.title }}</div>
+                    <div class="alert-message">{{ alert.message }}</div>
+                    <div class="alert-time">{{ formatTime(alert.created_at) }}</div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </n-popover>
+              </div>
+            </t-dropdown-item>
+          </template>
+        </t-dropdown>
+
+        <t-dropdown trigger="click" placement="bottom-right" :min-column-width="120" :popup-props="themePopupProps">
+          <t-button
+            variant="text"
+            size="small"
+            data-testid="theme-switch"
+            :aria-label="`主题设置，当前${themeLabel}`"
+            :aria-expanded="themeDropdownOpen"
+          >
+            <template #icon><PaletteIcon /></template>
+            {{ themeLabel }}
+          </t-button>
+          <template #dropdown>
+            <t-dropdown-item
+              v-for="option in themeOptions"
+              :key="option.value"
+              :data-testid="`theme-option-${option.value}`"
+              @click="settingStore.changeMode(option.value)"
+            >
+              {{ option.label }}
+            </t-dropdown-item>
+          </template>
+        </t-dropdown>
+
         <span class="admin-name">
-          <n-icon size="18"><PersonOutline /></n-icon>
+          <UserIcon size="18px" />
           {{ authStore.username || '管理员' }}
         </span>
-        <n-button quaternary type="error" size="small" @click="handleLogout">
-          <template #icon>
-            <n-icon><LogOutOutline /></n-icon>
-          </template>
+        <t-button variant="text" theme="danger" size="small" @click="handleLogout">
+          <template #icon><LogoutIcon /></template>
           退出
-        </n-button>
-      </n-space>
+        </t-button>
+      </t-space>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { NButton, NIcon, NBreadcrumb, NBreadcrumbItem, NSpace, NBadge, NPopover, NDivider, useMessage } from 'naive-ui'
-import { MenuOutline, PersonOutline, LogOutOutline, NotificationsOutline, AlertCircleOutline, WarningOutline } from '@vicons/ionicons5'
+import { MessagePlugin } from 'tdesign-vue-next'
+import {
+  MenuFoldIcon,
+  MenuUnfoldIcon,
+  NotificationIcon,
+  ErrorCircleIcon,
+  ErrorTriangleIcon,
+  PaletteIcon,
+  UserIcon,
+  LogoutIcon,
+} from 'tdesign-icons-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
-import { getAlerts, getUnreadAlertCount, markAlertAsRead, markAllAlertsAsRead } from '@/api/alert'
+import { useSettingStore, type ThemeMode } from '@/stores/setting'
+import { useAlertSummary } from '@/composables/useAlertSummary'
 import type { Alert } from '@/types'
 
 const router = useRouter()
 const route = useRoute()
-const message = useMessage()
 const authStore = useAuthStore()
 const appStore = useAppStore()
+const settingStore = useSettingStore()
 
-const alerts = ref<Alert[]>([])
-const unreadCount = ref(0)
-let timer: ReturnType<typeof setInterval> | null = null
+const {
+  unreadCount,
+  alerts,
+  pollError,
+  listError,
+  fetchAlerts,
+  refresh,
+  markRead,
+  markAllRead,
+  start,
+  stop,
+} = useAlertSummary()
+
+// 下拉开合状态仅用于 aria-expanded，由 TDesign popup 的可见性回调同步。
+const alertDropdownOpen = ref(false)
+const themeDropdownOpen = ref(false)
+const alertPopupProps = { onVisibleChange: (visible: boolean) => { alertDropdownOpen.value = visible } }
+const themePopupProps = { onVisibleChange: (visible: boolean) => { themeDropdownOpen.value = visible } }
+
+const themeOptions: Array<{ label: string; value: ThemeMode }> = [
+  { label: '跟随系统', value: 'auto' },
+  { label: '浅色', value: 'light' },
+  { label: '深色', value: 'dark' },
+]
+
+const themeLabel = computed(() => {
+  const found = themeOptions.find((option) => option.value === settingStore.mode)
+  return found ? found.label : '跟随系统'
+})
 
 const routeLabelMap: Record<string, string> = {
   Dashboard: '仪表盘',
@@ -116,43 +209,24 @@ const breadcrumbItems = computed(() => {
   return items
 })
 
-async function fetchUnreadCount() {
-  try {
-    const res = await getUnreadAlertCount()
-    if (res.data) {
-      unreadCount.value = res.data.count
-    }
-  } catch {}
-}
-
-async function fetchAlerts() {
-  try {
-    const res = await getAlerts({ page: 1, page_size: 20 })
-    if (res.data) {
-      alerts.value = res.data.items
-    }
-  } catch {}
-}
-
 async function handleMarkRead(alert: Alert) {
-  if (alert.is_read) return
-  try {
-    await markAlertAsRead(alert.id)
-    alert.is_read = true
-    unreadCount.value = Math.max(0, unreadCount.value - 1)
-  } catch {
-    message.error('标记已读失败')
+  if (await markRead(alert)) {
+    MessagePlugin.success('已标记为已读')
+  } else {
+    MessagePlugin.error('标记已读失败')
   }
 }
 
 async function handleMarkAllRead() {
-  try {
-    await markAllAlertsAsRead()
-    alerts.value.forEach(a => { a.is_read = true })
-    unreadCount.value = 0
-  } catch {
-    message.error('标记全部已读失败')
+  if (await markAllRead()) {
+    MessagePlugin.success('已全部标记为已读')
+  } else {
+    MessagePlugin.error('标记全部已读失败')
   }
+}
+
+function handleRetry() {
+  void refresh()
 }
 
 function formatTime(t: string) {
@@ -166,27 +240,18 @@ function formatTime(t: string) {
 }
 
 async function handleLogout() {
-  if (timer) {
-    clearInterval(timer)
-    timer = null
-  }
+  stop()
   await authStore.logout()
   router.push({ name: 'Login' })
 }
 
 onMounted(() => {
-  fetchUnreadCount()
-  fetchAlerts()
-  timer = setInterval(() => {
-    fetchUnreadCount()
-  }, 30000)
+  start()
+  void fetchAlerts()
 })
 
 onUnmounted(() => {
-  if (timer) {
-    clearInterval(timer)
-    timer = null
-  }
+  stop()
 })
 </script>
 
@@ -197,7 +262,6 @@ onUnmounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 0 24px;
-  background: rgba(255, 255, 255, 0.96);
 }
 
 .header-left {
@@ -216,13 +280,52 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   font-size: 14px;
-  color: rgba(0, 0, 0, 0.65);
+  color: var(--td-text-color-secondary);
+}
+
+/* 面板被包在 dropdown item 内以满足 TDesign 1.20 的面板提取规则，去掉菜单项的默认内边距。 */
+:deep(.alert-dropdown-item) {
+  padding: 8px 12px;
+  cursor: default;
 }
 
 .alert-panel {
   max-height: 480px;
+  width: 340px;
+  max-width: calc(100vw - 32px);
   display: flex;
   flex-direction: column;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.alert-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 4px;
+  color: var(--td-error-color);
+  font-size: 12px;
+}
+
+.alert-unread-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background-color: var(--td-brand-color);
 }
 
 .alert-panel-header {
@@ -245,7 +348,7 @@ onUnmounted(() => {
 .alert-empty {
   padding: 24px 0;
   text-align: center;
-  color: rgba(0, 0, 0, 0.35);
+  color: var(--td-text-color-placeholder);
   font-size: 13px;
 }
 
@@ -255,16 +358,16 @@ onUnmounted(() => {
   gap: 10px;
   padding: 10px 4px;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--td-radius-default);
   transition: background-color 0.2s;
 }
 
 .alert-item:hover {
-  background-color: rgba(0, 0, 0, 0.03);
+  background-color: var(--td-bg-color-container-hover);
 }
 
 .alert-unread {
-  background-color: rgba(24, 160, 88, 0.04);
+  background-color: var(--td-brand-color-light);
 }
 
 .alert-icon {
@@ -280,7 +383,7 @@ onUnmounted(() => {
 .alert-title {
   font-size: 13px;
   font-weight: 500;
-  color: rgba(0, 0, 0, 0.85);
+  color: var(--td-text-color-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -288,7 +391,7 @@ onUnmounted(() => {
 
 .alert-message {
   font-size: 12px;
-  color: rgba(0, 0, 0, 0.55);
+  color: var(--td-text-color-secondary);
   margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
@@ -297,7 +400,7 @@ onUnmounted(() => {
 
 .alert-time {
   font-size: 11px;
-  color: rgba(0, 0, 0, 0.35);
+  color: var(--td-text-color-placeholder);
   margin-top: 2px;
 }
 
@@ -308,14 +411,6 @@ onUnmounted(() => {
 
   .admin-name {
     display: none;
-  }
-
-  .header-right :deep(.n-space) {
-    gap: 2px !important;
-  }
-
-  .header-right :deep(.n-button__content) {
-    font-size: 0;
   }
 }
 </style>

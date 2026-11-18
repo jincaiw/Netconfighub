@@ -17,43 +17,32 @@
         <h1 class="login-title">登录管理控制台</h1>
         <p class="login-subtitle">使用管理员账户继续</p>
       </div>
-      <n-card class="login-card">
-        <n-form ref="formRef" :model="formData" :rules="rules" label-placement="top">
-          <n-form-item path="username" label="用户名">
-            <n-input
-              v-model:value="formData.username"
+      <t-card class="login-card">
+        <t-form ref="formRef" :data="formData" :rules="rules" label-align="top">
+          <t-form-item label="用户名" name="username">
+            <t-input
+              v-model="formData.username"
               placeholder="请输入用户名"
-              @keydown.enter="handleLogin"
+              @enter="handleLogin"
             >
-              <template #prefix>
-                <n-icon :component="PersonOutline" />
-              </template>
-            </n-input>
-          </n-form-item>
-          <n-form-item path="password" label="密码">
-            <n-input
-              v-model:value="formData.password"
+              <template #prefixIcon><UserIcon /></template>
+            </t-input>
+          </t-form-item>
+          <t-form-item label="密码" name="password">
+            <t-input
+              v-model="formData.password"
               type="password"
-              show-password-on="click"
               placeholder="请输入密码"
-              @keydown.enter="handleLogin"
+              @enter="handleLogin"
             >
-              <template #prefix>
-                <n-icon :component="LockClosedOutline" />
-              </template>
-            </n-input>
-          </n-form-item>
-          <n-button
-            type="primary"
-            block
-            size="large"
-            :loading="loading"
-            @click="handleLogin"
-          >
+              <template #prefixIcon><LockOnIcon /></template>
+            </t-input>
+          </t-form-item>
+          <t-button theme="primary" block size="large" :loading="loading" @click="handleLogin">
             登录
-          </n-button>
-        </n-form>
-      </n-card>
+          </t-button>
+        </t-form>
+      </t-card>
     </div>
   </div>
 </template>
@@ -61,17 +50,15 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { NCard, NForm, NFormItem, NInput, NButton, NIcon, useMessage } from 'naive-ui'
-import type { FormInst, FormRules } from 'naive-ui'
-import { PersonOutline, LockClosedOutline } from '@vicons/ionicons5'
+import { MessagePlugin, type FormInstanceFunctions, type FormRules } from 'tdesign-vue-next'
+import { UserIcon, LockOnIcon } from 'tdesign-icons-vue-next'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const route = useRoute()
-const message = useMessage()
 const authStore = useAuthStore()
 
-const formRef = ref<FormInst | null>(null)
+const formRef = ref<FormInstanceFunctions | null>(null)
 const loading = ref(false)
 
 const formData = reactive({
@@ -85,21 +72,18 @@ const rules: FormRules = {
 }
 
 async function handleLogin() {
-  try {
-    await formRef.value?.validate()
-  } catch {
-    return
-  }
+  const valid = await formRef.value?.validate()
+  if (valid !== true) return
 
   loading.value = true
   try {
     await authStore.login(formData)
-    message.success('登录成功')
+    MessagePlugin.success('登录成功')
     const redirect = (route.query.redirect as string) || '/dashboard'
     router.push(redirect)
   } catch (err: any) {
     const msg = err?.response?.data?.message || '登录失败，请检查用户名和密码'
-    message.error(msg)
+    MessagePlugin.error(msg)
   } finally {
     loading.value = false
   }
@@ -108,11 +92,25 @@ async function handleLogin() {
 
 <style scoped>
 .login-container {
+  /* 登录页品牌深蓝面板为有意设计，独立于 --td-brand 的局部设计变量；集中在此管理。 */
+  --login-brand-deep: #071a33;
+  --login-brand-deep-2: #0b2749;
+  --login-accent: #34d399;
+  --login-accent-glow: rgba(16, 185, 129, 0.22);
+  --login-accent-wash: rgba(16, 185, 129, 0.1);
+  --login-accent-border: rgba(52, 211, 153, 0.45);
+  --login-ring: rgba(148, 163, 184, 0.16);
+  --login-ring-soft: rgba(148, 163, 184, 0.05);
+  --login-ring-faint: rgba(148, 163, 184, 0.03);
+  --login-copy: #b9c8dc;
+  --login-feature: #dbe6f3;
+
   width: 100%;
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
   grid-template-columns: minmax(420px, 46%) 1fr;
-  background: #f4f7fb;
+  background: var(--td-bg-color-page);
 }
 
 .brand-panel {
@@ -122,10 +120,10 @@ async function handleLogin() {
   justify-content: center;
   padding: 9vw;
   overflow: hidden;
-  color: #f8fafc;
+  color: var(--td-text-color-anti);
   background:
-    radial-gradient(circle at 18% 20%, rgba(16, 185, 129, 0.22), transparent 28%),
-    linear-gradient(145deg, #071a33 0%, #0b2749 100%);
+    radial-gradient(circle at 18% 20%, var(--login-accent-glow), transparent 28%),
+    linear-gradient(145deg, var(--login-brand-deep) 0%, var(--login-brand-deep-2) 100%);
 }
 
 .brand-panel::after {
@@ -135,11 +133,11 @@ async function handleLogin() {
   bottom: -140px;
   width: 420px;
   height: 420px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
+  border: 1px solid var(--login-ring);
   border-radius: 50%;
   box-shadow:
-    0 0 0 70px rgba(148, 163, 184, 0.05),
-    0 0 0 140px rgba(148, 163, 184, 0.03);
+    0 0 0 70px var(--login-ring-soft),
+    0 0 0 140px var(--login-ring-faint);
 }
 
 .brand-mark {
@@ -148,10 +146,10 @@ async function handleLogin() {
   align-items: center;
   justify-content: center;
   display: flex;
-  border: 1px solid rgba(52, 211, 153, 0.45);
+  border: 1px solid var(--login-accent-border);
   border-radius: 14px;
-  color: #34d399;
-  background: rgba(16, 185, 129, 0.1);
+  color: var(--login-accent);
+  background: var(--login-accent-wash);
   font-size: 24px;
   font-weight: 800;
 }
@@ -171,7 +169,7 @@ async function handleLogin() {
 
 .brand-copy p {
   margin-top: 20px;
-  color: #b9c8dc;
+  color: var(--login-copy);
   font-size: 17px;
   line-height: 1.8;
 }
@@ -182,7 +180,7 @@ async function handleLogin() {
   display: grid;
   gap: 14px;
   margin-top: 48px;
-  color: #dbe6f3;
+  color: var(--login-feature);
   font-size: 14px;
 }
 
@@ -193,7 +191,7 @@ async function handleLogin() {
   height: 7px;
   margin-right: 12px;
   border-radius: 50%;
-  background: #34d399;
+  background: var(--login-accent);
 }
 
 .login-content {
@@ -212,28 +210,27 @@ async function handleLogin() {
 .login-title {
   font-size: 28px;
   font-weight: 700;
-  color: #0f172a;
+  color: var(--td-text-color-primary);
   letter-spacing: -0.02em;
   margin-bottom: 8px;
 }
 
 .login-subtitle {
   font-size: 14px;
-  color: #64748b;
+  color: var(--td-text-color-secondary);
 }
 
 .login-card {
   width: 420px;
-  border-color: #dfe7f1;
-  border-radius: 12px;
-  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+  border-radius: var(--td-radius-large);
 }
 
-.login-card :deep(.n-card__content) {
+.login-card :deep(.t-card__body) {
   padding: 30px;
 }
 
-@media (max-width: 900px) {
+/* 断点统一到 768px（见 global.css 断点契约），合并原 900/520 两档。 */
+@media (max-width: 768px) {
   .login-container {
     grid-template-columns: 1fr;
   }
@@ -258,12 +255,6 @@ async function handleLogin() {
 
   .brand-features {
     display: none;
-  }
-}
-
-@media (max-width: 520px) {
-  .brand-panel {
-    min-height: 190px;
   }
 
   .login-header,

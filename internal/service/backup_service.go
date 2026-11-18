@@ -4,17 +4,26 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/netconfighub/netconfighub/internal/apperr"
 	"github.com/netconfighub/netconfighub/internal/gitstore"
 	"github.com/netconfighub/netconfighub/internal/model"
 	"github.com/netconfighub/netconfighub/internal/repository"
 	"github.com/netconfighub/netconfighub/internal/sanitizer"
 )
 
+// BackupScheduler is the narrow interface the service uses to enqueue backups.
+// It is satisfied by *scheduler.Scheduler and by test doubles.
+type BackupScheduler interface {
+	SubmitDevice(deviceID uint) error
+	SubmitGroup(groupID uint) error
+}
+
 type backupServiceImpl struct {
 	backupTaskRepo repository.BackupTaskRepository
 	deviceRepo     repository.DeviceRepository
 	gitStore       *gitstore.Store
 	sanitizer      *sanitizer.Sanitizer
+	scheduler      BackupScheduler
 }
 
 func NewBackupService(
@@ -29,6 +38,29 @@ func NewBackupService(
 		gitStore:       gitStore,
 		sanitizer:      san,
 	}
+}
+
+// SetScheduler injects the scheduler used by the API-triggered backup path.
+func (s *backupServiceImpl) SetScheduler(scheduler BackupScheduler) {
+	s.scheduler = scheduler
+}
+
+// TriggerBackupFromAPI is the production entry point for a device backup
+// triggered over HTTP. It delegates to the scheduler behind the service layer
+// so handlers never call the scheduler directly.
+func (s *backupServiceImpl) TriggerBackupFromAPI(ctx context.Context, deviceID uint) error {
+	if s.scheduler == nil {
+		return apperr.Wrap(apperr.ErrSchedulerDown, "调度器未初始化")
+	}
+	return s.scheduler.SubmitDevice(deviceID)
+}
+
+// TriggerGroupBackupFromAPI is the equivalent entry point for group backups.
+func (s *backupServiceImpl) TriggerGroupBackupFromAPI(ctx context.Context, groupID uint) error {
+	if s.scheduler == nil {
+		return apperr.Wrap(apperr.ErrSchedulerDown, "调度器未初始化")
+	}
+	return s.scheduler.SubmitGroup(groupID)
 }
 
 func (s *backupServiceImpl) GetByID(ctx context.Context, id uint) (*model.BackupTask, error) {

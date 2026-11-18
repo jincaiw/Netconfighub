@@ -1,86 +1,91 @@
 <template>
   <div class="device-detail">
-    <n-page-header @back="router.push('/devices')" title="设备详情" subtitle="">
-      <template #extra>
-        <n-space>
-          <n-button @click="router.push('/devices')">返回列表</n-button>
-          <n-button :type="device?.enabled ? 'warning' : 'success'" @click="handleToggleEnabled" :disabled="!device">
-            {{ device?.enabled ? '禁用设备' : '启用设备' }}
-          </n-button>
-          <n-button type="primary" :loading="backupLoading" @click="handleBackup">触发备份</n-button>
-        </n-space>
-      </template>
-    </n-page-header>
+    <div class="page-heading">
+      <div>
+        <t-button variant="text" @click="router.push('/devices')">
+          <template #icon><ChevronLeftIcon /></template>
+          返回列表
+        </t-button>
+        <h1>设备详情</h1>
+      </div>
+      <t-space>
+        <t-button
+          :theme="device?.enabled ? 'warning' : 'success'"
+          variant="outline"
+          :disabled="!device"
+          @click="handleToggleEnabled"
+        >
+          {{ device?.enabled ? '禁用设备' : '启用设备' }}
+        </t-button>
+        <t-button theme="primary" :loading="backupLoading" @click="handleBackup">触发备份</t-button>
+      </t-space>
+    </div>
 
-    <n-spin :show="loading">
-      <n-card title="设备信息" style="margin-top: 16px">
-        <n-descriptions bordered :column="3">
-          <n-descriptions-item label="设备名称">{{ device?.name }}</n-descriptions-item>
-          <n-descriptions-item label="IP 地址">{{ device?.ip }}</n-descriptions-item>
-          <n-descriptions-item label="厂商">{{ vendorLabel }}</n-descriptions-item>
-          <n-descriptions-item label="型号">{{ modelLabel }}</n-descriptions-item>
-          <n-descriptions-item label="连接协议">{{ device?.protocol?.toUpperCase() }}</n-descriptions-item>
-          <n-descriptions-item label="端口">{{ device?.port }}</n-descriptions-item>
-          <n-descriptions-item label="分组">{{ device?.group_name || '-' }}</n-descriptions-item>
-          <n-descriptions-item label="启用状态">
-            <n-tag :type="device?.enabled ? 'success' : 'default'" size="small">
+    <t-loading :loading="loading">
+      <t-card title="设备信息" style="margin-top: 16px">
+        <t-descriptions bordered :column="3">
+          <t-descriptions-item label="设备名称">{{ device?.name }}</t-descriptions-item>
+          <t-descriptions-item label="IP 地址">{{ device?.ip }}</t-descriptions-item>
+          <t-descriptions-item label="厂商">{{ vendorLabel }}</t-descriptions-item>
+          <t-descriptions-item label="型号">{{ modelLabel }}</t-descriptions-item>
+          <t-descriptions-item label="连接协议">{{ device?.protocol?.toUpperCase() }}</t-descriptions-item>
+          <t-descriptions-item label="端口">{{ device?.port }}</t-descriptions-item>
+          <t-descriptions-item label="分组">{{ device?.group_name || '-' }}</t-descriptions-item>
+          <t-descriptions-item label="启用状态">
+            <t-tag :theme="device?.enabled ? 'success' : 'default'" variant="light" size="small">
               {{ device?.enabled ? '已启用' : '已禁用' }}
-            </n-tag>
-          </n-descriptions-item>
-          <n-descriptions-item label="备份状态">
+            </t-tag>
+          </t-descriptions-item>
+          <t-descriptions-item label="备份状态">
             <BackupStatus v-if="device" :status="device.last_backup_status" />
-          </n-descriptions-item>
-          <n-descriptions-item label="最近备份">{{ device?.last_backup_at || '-' }}</n-descriptions-item>
-          <n-descriptions-item label="失败原因" :span="2">{{ device?.last_failure_reason || '-' }}</n-descriptions-item>
-        </n-descriptions>
-      </n-card>
+          </t-descriptions-item>
+          <t-descriptions-item label="最近备份">{{ device?.last_backup_at || '-' }}</t-descriptions-item>
+          <t-descriptions-item label="失败原因" :span="2">{{ device?.last_failure_reason || '-' }}</t-descriptions-item>
+        </t-descriptions>
+      </t-card>
 
-      <n-card style="margin-top: 16px">
-        <n-tabs v-model:value="activeTab" type="line">
-          <n-tab-pane name="latest" tab="最新配置">
-            <n-spin :show="configLoading">
+      <t-card style="margin-top: 16px">
+        <t-tabs v-model="activeTab">
+          <t-tab-panel value="latest" label="最新配置">
+            <t-loading :loading="configLoading">
               <div class="config-content">
                 <pre><code>{{ latestConfig || '暂无配置' }}</code></pre>
               </div>
-            </n-spin>
-          </n-tab-pane>
-          <n-tab-pane name="history" tab="历史版本">
-            <n-space style="margin-bottom: 12px" v-if="configVersions.length >= 2">
-              <n-select
-                v-model:value="selectedFromHash"
+            </t-loading>
+          </t-tab-panel>
+          <t-tab-panel value="history" label="历史版本">
+            <t-space v-if="configVersions.length >= 2" :wrap="true" class="version-compare" style="margin-bottom: 12px">
+              <t-select
+                v-model="selectedFromHash"
                 :options="versionOptions"
                 placeholder="选择源版本"
-                style="width: 300px"
+                class="version-select"
               />
-              <n-select
-                v-model:value="selectedToHash"
+              <t-select
+                v-model="selectedToHash"
                 :options="versionOptions"
                 placeholder="选择目标版本"
-                style="width: 300px"
+                class="version-select"
               />
-              <n-button
-                type="primary"
+              <t-button
+                theme="primary"
                 :disabled="!selectedFromHash || !selectedToHash || selectedFromHash === selectedToHash"
                 :loading="diffLoading"
                 @click="handleDiff"
               >
                 比对
-              </n-button>
-            </n-space>
-            <n-data-table
-              :columns="versionColumns"
-              :data="configVersions"
-              :loading="versionsLoading"
-              size="small"
-            />
-            <n-modal v-model:show="showDiffModal" preset="dialog" title="配置比对结果" style="width: 800px">
+              </t-button>
+            </t-space>
+            <t-table :columns="versionColumns" :data="configVersions" :loading="versionsLoading" row-key="hash" />
+            <t-dialog v-model:visible="showDiffModal" header="配置比对结果" :width="800" :footer="false">
               <div v-if="diffResult">
-                <n-space style="margin-bottom: 8px">
-                  <n-tag type="success">新增 {{ diffResult.added_lines }} 行</n-tag>
-                  <n-tag type="error">删除 {{ diffResult.removed_lines }} 行</n-tag>
-                </n-space>
+                <t-space style="margin-bottom: 8px">
+                  <t-tag theme="success" variant="light">新增 {{ diffResult.added_lines }} 行</t-tag>
+                  <t-tag theme="danger" variant="light">删除 {{ diffResult.removed_lines }} 行</t-tag>
+                </t-space>
                 <div class="diff-viewer">
-                  <pre v-for="(line, idx) in diffLines" :key="idx"
+                  <pre
+v-for="(line, idx) in diffLines" :key="idx"
                     :class="{
                       'diff-line-added': line.startsWith('+'),
                       'diff-line-removed': line.startsWith('-'),
@@ -89,16 +94,13 @@
                   >{{ line }}</pre>
                 </div>
               </div>
-              <template #action>
-                <n-button @click="showDiffModal = false">关闭</n-button>
-              </template>
-            </n-modal>
-          </n-tab-pane>
-          <n-tab-pane name="deviations" tab="基线偏差">
-            <n-spin :show="deviationsLoading">
-              <n-empty v-if="!deviationsLoading && deviations.length === 0" description="暂无偏差" />
+            </t-dialog>
+          </t-tab-panel>
+          <t-tab-panel value="deviations" label="基线偏差">
+            <t-loading :loading="deviationsLoading">
+              <t-empty v-if="!deviationsLoading && deviations.length === 0" description="暂无偏差" />
               <div v-else>
-                <n-card
+                <t-card
                   v-for="deviation in deviations"
                   :key="deviation.id"
                   size="small"
@@ -106,40 +108,23 @@
                 >
                   <pre class="diff-content">{{ deviation.diff_content }}</pre>
                   <template #footer>
-                    <n-text depth="3">检测时间: {{ deviation.detected_at }}</n-text>
+                    <span class="diff-time">检测时间: {{ deviation.detected_at }}</span>
                   </template>
-                </n-card>
+                </t-card>
               </div>
-            </n-spin>
-          </n-tab-pane>
-        </n-tabs>
-      </n-card>
-    </n-spin>
+            </t-loading>
+          </t-tab-panel>
+        </t-tabs>
+      </t-card>
+    </t-loading>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import {
-  NPageHeader,
-  NCard,
-  NDescriptions,
-  NDescriptionsItem,
-  NTabs,
-  NTabPane,
-  NDataTable,
-  NEmpty,
-  NText,
-  NButton,
-  NSpace,
-  NSpin,
-  NSelect,
-  NModal,
-  NTag,
-  useMessage,
-} from 'naive-ui'
-import type { DataTableColumns } from 'naive-ui'
+import { MessagePlugin, type PrimaryTableCol } from 'tdesign-vue-next'
+import { ChevronLeftIcon } from 'tdesign-icons-vue-next'
 import { getDevice, enableDevice, disableDevice } from '@/api/device'
 import { triggerDeviceBackup } from '@/api/backup'
 import { getDeviceConfig, getDeviceVersions, getDeviceDeviations, getConfigDiff } from '@/api/config'
@@ -148,7 +133,6 @@ import BackupStatus from '@/components/BackupStatus.vue'
 
 const router = useRouter()
 const route = useRoute()
-const message = useMessage()
 
 const loading = ref(false)
 const configLoading = ref(false)
@@ -197,7 +181,7 @@ const versionOptions = computed(() =>
   configVersions.value.map((v) => ({
     label: `${v.hash.substring(0, 8)} - ${v.message} (${v.date})`,
     value: v.hash,
-  }))
+  })),
 )
 
 const diffLines = computed(() => {
@@ -205,11 +189,11 @@ const diffLines = computed(() => {
   return diffResult.value.diff_content.split('\n')
 })
 
-const versionColumns: DataTableColumns<ConfigVersion> = [
-  { title: 'Hash', key: 'hash', ellipsis: { tooltip: true } },
-  { title: '提交信息', key: 'message' },
-  { title: '作者', key: 'author', width: 120 },
-  { title: '日期', key: 'date', width: 180 },
+const versionColumns: PrimaryTableCol<ConfigVersion>[] = [
+  { title: 'Hash', colKey: 'hash', ellipsis: true },
+  { title: '提交信息', colKey: 'message' },
+  { title: '作者', colKey: 'author', width: 120 },
+  { title: '日期', colKey: 'date', width: 180 },
 ]
 
 async function fetchDevice() {
@@ -218,7 +202,7 @@ async function fetchDevice() {
     const res = await getDevice(deviceId)
     device.value = res.data
   } catch {
-    message.error('获取设备信息失败')
+    MessagePlugin.error('获取设备信息失败')
   } finally {
     loading.value = false
   }
@@ -230,7 +214,7 @@ async function fetchLatestConfig() {
     const res = await getDeviceConfig(deviceId)
     latestConfig.value = res.data.content
   } catch {
-    message.error('获取设备配置失败')
+    MessagePlugin.error('获取设备配置失败')
   } finally {
     configLoading.value = false
   }
@@ -242,7 +226,7 @@ async function fetchConfigVersions() {
     const res = await getDeviceVersions(deviceId)
     configVersions.value = res.data
   } catch {
-    message.error('获取历史版本失败')
+    MessagePlugin.error('获取历史版本失败')
   } finally {
     versionsLoading.value = false
   }
@@ -254,7 +238,7 @@ async function fetchDeviations() {
     const res = await getDeviceDeviations(deviceId, { page: 1, page_size: 20 })
     deviations.value = res.data.items
   } catch {
-    message.error('获取基线偏差失败')
+    MessagePlugin.error('获取基线偏差失败')
   } finally {
     deviationsLoading.value = false
   }
@@ -268,7 +252,7 @@ async function handleDiff() {
     diffResult.value = res.data
     showDiffModal.value = true
   } catch {
-    message.error('配置比对失败')
+    MessagePlugin.error('配置比对失败')
   } finally {
     diffLoading.value = false
   }
@@ -278,9 +262,9 @@ async function handleBackup() {
   backupLoading.value = true
   try {
     await triggerDeviceBackup(deviceId)
-    message.success('备份任务已触发')
+    MessagePlugin.success('备份任务已触发')
   } catch {
-    message.error('备份任务触发失败')
+    MessagePlugin.error('备份任务触发失败')
   } finally {
     backupLoading.value = false
   }
@@ -291,20 +275,20 @@ async function handleToggleEnabled() {
   try {
     if (device.value.enabled) {
       await disableDevice(device.value.id)
-      message.success('设备已禁用')
+      MessagePlugin.success('设备已禁用')
     } else {
       await enableDevice(device.value.id)
-      message.success('设备已启用')
+      MessagePlugin.success('设备已启用')
     }
     fetchDevice()
   } catch {
-    message.error(device.value!.enabled ? '禁用设备失败' : '启用设备失败')
+    MessagePlugin.error(device.value!.enabled ? '禁用设备失败' : '启用设备失败')
   }
 }
 
 onMounted(() => {
   if (isInvalidId) {
-    message.error('无效的设备 ID')
+    MessagePlugin.error('无效的设备 ID')
     router.push('/devices')
     return
   }
@@ -324,9 +308,23 @@ watch(activeTab, (tab) => {
   width: 100%;
 }
 
+.page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.page-heading h1 {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 22px;
+  color: var(--td-text-color-primary);
+}
+
 .config-content {
-  background-color: #f5f5f5;
-  border-radius: 4px;
+  background-color: var(--td-bg-color-container-hover);
+  border-radius: var(--td-radius-default);
   padding: 16px;
   overflow-x: auto;
 }
@@ -340,10 +338,6 @@ watch(activeTab, (tab) => {
   word-break: break-all;
 }
 
-.config-content code {
-  font-family: inherit;
-}
-
 .diff-content {
   margin: 0;
   font-family: 'SF Mono', 'Monaco', 'Menlo', 'Consolas', monospace;
@@ -354,8 +348,8 @@ watch(activeTab, (tab) => {
 }
 
 .diff-viewer {
-  background-color: #fafafa;
-  border-radius: 4px;
+  background-color: var(--td-bg-color-container-hover);
+  border-radius: var(--td-radius-default);
   padding: 12px;
   overflow-x: auto;
   max-height: 500px;
@@ -373,14 +367,35 @@ watch(activeTab, (tab) => {
 }
 
 .diff-line-added {
-  background-color: #e6ffec;
+  background-color: var(--td-success-color-1);
 }
 
 .diff-line-removed {
-  background-color: #ffebe9;
+  background-color: var(--td-error-color-1);
 }
 
 .diff-line-context {
   background-color: transparent;
+}
+
+.diff-time {
+  color: var(--td-text-color-placeholder);
+  font-size: 12px;
+}
+
+.version-compare {
+  width: 100%;
+}
+
+.version-select {
+  width: min(300px, 100%);
+  flex: 1 1 240px;
+}
+
+@media (max-width: 768px) {
+  .version-select {
+    width: 100%;
+    flex-basis: 100%;
+  }
 }
 </style>

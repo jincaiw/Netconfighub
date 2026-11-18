@@ -157,6 +157,10 @@ Docker Hub：<https://hub.docker.com/r/qing1205/netconfighub>
 - `sanitize.*`：采集配置中的敏感信息脱敏规则。
 - `notify.*`：Webhook 通知设置。
 
+SSH 主机密钥校验通过环境变量配置（非 YAML 字段）：默认必须设置
+`NCH_SSH_KNOWN_HOSTS=<known_hosts 文件路径>` 才能进行 SSH 采集；仅在本地
+开发环境可显式设置 `NCH_SSH_ALLOW_INSECURE=true` 跳过校验，生产环境禁止使用。
+
 自动化 e2e 测试使用 `configs/config.e2e.yaml`，运行数据写入 `/tmp`。
 
 ## 开发和测试

@@ -1,12 +1,14 @@
 package handler
 
 import (
+	"errors"
 	"net"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/netconfighub/netconfighub/internal/apperr"
 	"github.com/netconfighub/netconfighub/internal/model"
 )
 
@@ -323,12 +325,11 @@ func (r *Router) triggerBackup(c *gin.Context) {
 		return
 	}
 
-	if r.scheduler == nil {
-		Error(c, http.StatusInternalServerError, 500, "调度器未初始化")
-		return
-	}
-
-	if err := r.scheduler.SubmitDevice(uint(id)); err != nil {
+	if err := r.backupService.TriggerBackupFromAPI(c.Request.Context(), uint(id)); err != nil {
+		if errors.Is(err, apperr.ErrSchedulerDown) {
+			Error(c, http.StatusInternalServerError, 500, "调度器未初始化")
+			return
+		}
 		BadRequest(c, "提交备份任务失败")
 		return
 	}
@@ -347,7 +348,7 @@ func (r *Router) getDeviceConfig(c *gin.Context) {
 
 	content, err := r.deviceService.GetDeviceConfig(c.Request.Context(), uint(id))
 	if err != nil {
-		if strings.Contains(err.Error(), "设备不存在") {
+		if errors.Is(err, apperr.ErrDeviceNotFound) {
 			Error(c, http.StatusNotFound, 404, "设备不存在")
 			return
 		}
@@ -371,7 +372,7 @@ func (r *Router) getDeviceVersions(c *gin.Context) {
 
 	versions, err := r.deviceService.GetDeviceVersions(c.Request.Context(), uint(id), limit)
 	if err != nil {
-		if strings.Contains(err.Error(), "设备不存在") {
+		if errors.Is(err, apperr.ErrDeviceNotFound) {
 			Error(c, http.StatusNotFound, 404, "设备不存在")
 			return
 		}
@@ -435,7 +436,7 @@ func (r *Router) getConfigDiff(c *gin.Context) {
 	}
 	result, err := r.deviceService.GetConfigDiff(c.Request.Context(), id, fromHash, toHash)
 	if err != nil {
-		if strings.Contains(err.Error(), "设备不存在") {
+		if errors.Is(err, apperr.ErrDeviceNotFound) {
 			Error(c, http.StatusNotFound, 404, "设备不存在")
 			return
 		}
@@ -449,7 +450,7 @@ func (r *Router) getLatestDiff(c *gin.Context) {
 	id := c.Param("id")
 	result, err := r.deviceService.GetLatestDiff(c.Request.Context(), id)
 	if err != nil {
-		if strings.Contains(err.Error(), "设备不存在") {
+		if errors.Is(err, apperr.ErrDeviceNotFound) {
 			Error(c, http.StatusNotFound, 404, "设备不存在")
 			return
 		}
@@ -469,7 +470,7 @@ func (r *Router) downloadDiff(c *gin.Context) {
 	}
 	result, err := r.deviceService.GetConfigDiff(c.Request.Context(), id, fromHash, toHash)
 	if err != nil {
-		if strings.Contains(err.Error(), "设备不存在") {
+		if errors.Is(err, apperr.ErrDeviceNotFound) {
 			Error(c, http.StatusNotFound, 404, "设备不存在")
 			return
 		}

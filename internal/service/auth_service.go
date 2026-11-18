@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/netconfighub/netconfighub/internal/middleware"
+	"github.com/netconfighub/netconfighub/internal/authclaim"
 	"github.com/netconfighub/netconfighub/internal/model"
 )
 
@@ -39,8 +39,10 @@ func (s *authServiceImpl) Logout(ctx context.Context) error {
 }
 
 func (s *authServiceImpl) RefreshToken(ctx context.Context, tokenString string) (string, time.Time, error) {
-	claims := &middleware.Claims{}
-	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	claims := &authclaim.Claims{}
+	// Use the standard parser so exp/iat/nbf are actually validated. The old
+	// parser skipped claim validation and allowed expired tokens to be exchanged.
+	parser := jwt.NewParser(jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}))
 	token, err := parser.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
@@ -83,7 +85,7 @@ func (s *authServiceImpl) ChangePassword(ctx context.Context, adminID uint, oldP
 
 func (s *authServiceImpl) generateToken(admin *model.Admin) (string, time.Time, error) {
 	expiresAt := time.Now().Add(s.jwtExpire)
-	claims := &middleware.Claims{
+	claims := &authclaim.Claims{
 		AdminID:  admin.ID,
 		Username: admin.Username,
 		RegisteredClaims: jwt.RegisteredClaims{

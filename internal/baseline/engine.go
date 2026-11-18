@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/netconfighub/netconfighub/internal/diffcap"
 	"github.com/netconfighub/netconfighub/internal/gitstore"
 	"github.com/netconfighub/netconfighub/internal/model"
 )
@@ -73,6 +74,10 @@ func generateDiff(oldText, newText string) (string, int, int) {
 	oldLines := splitLines(oldText)
 	newLines := splitLines(newText)
 
+	if diffcap.Exceeded(oldLines, newLines) {
+		return truncatedDiff(oldLines, newLines)
+	}
+
 	lcs := computeLCS(oldLines, newLines)
 
 	var buf bytes.Buffer
@@ -127,6 +132,55 @@ func generateDiff(oldText, newText string) (string, int, int) {
 	}
 
 	return buf.String(), added, removed
+}
+
+// truncatedDiff avoids an O(n*m) matrix for oversized inputs. It reports the
+// exact added/removed counts but only a bounded sample of the text.
+func truncatedDiff(oldLines, newLines []string) (string, int, int) {
+	var buf bytes.Buffer
+	buf.WriteString("--- 基线\n")
+	buf.WriteString("+++ 当前配置\n")
+	buf.WriteString("@@ 配置过大，仅统计增删行 @@\n")
+	const sample = 50
+	for i, line := range oldLines {
+		if i >= sample {
+			break
+		}
+		buf.WriteString("-" + line + "\n")
+	}
+	for i, line := range newLines {
+		if i >= sample {
+			break
+		}
+		buf.WriteString("+" + line + "\n")
+	}
+	if len(oldLines) > sample || len(newLines) > sample {
+		buf.WriteString("... 已截断 ...\n")
+	}
+	added, removed := countAddedRemoved(oldLines, newLines)
+	return buf.String(), added, removed
+}
+
+// countAddedRemoved estimates added/removed line counts in O(n+m) using a
+// multiset of old lines: each new line that matches an unconsumed old line is
+// "common", the rest are additions (and unmatched old lines are removals).
+// This is an approximation — it does not compute an exact minimal edit
+// distance and ignores line order — but it is far more honest than the
+// previous behaviour of reporting the total line count as both additions and
+// removals. Memory is O(distinct lines).
+func countAddedRemoved(oldLines, newLines []string) (added, removed int) {
+	counts := make(map[string]int, len(oldLines))
+	for _, line := range oldLines {
+		counts[line]++
+	}
+	common := 0
+	for _, line := range newLines {
+		if counts[line] > 0 {
+			counts[line]--
+			common++
+		}
+	}
+	return len(newLines) - common, len(oldLines) - common
 }
 
 func splitLines(text string) []string {

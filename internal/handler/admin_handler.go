@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 
@@ -37,7 +38,9 @@ func (r *Router) login(c *gin.Context) {
 }
 
 func (r *Router) logout(c *gin.Context) {
-	_ = r.authService.Logout(c.Request.Context())
+	if err := r.authService.Logout(c.Request.Context()); err != nil {
+		log.Printf("登出处理失败: %v", err)
+	}
 	Success(c, nil)
 }
 
@@ -195,13 +198,18 @@ func (r *Router) changePassword(c *gin.Context) {
 		Unauthorized(c, "未认证")
 		return
 	}
+	uid, ok := adminID.(uint)
+	if !ok {
+		Unauthorized(c, "未认证")
+		return
+	}
 
-	if err := r.authService.ChangePassword(c.Request.Context(), adminID.(uint), req.OldPassword, req.NewPassword); err != nil {
+	if err := r.authService.ChangePassword(c.Request.Context(), uid, req.OldPassword, req.NewPassword); err != nil {
 		BadRequest(c, err.Error())
 		return
 	}
 
-	r.auditLog(c, "change_password", "admin", adminID.(uint), "修改密码")
+	r.auditLog(c, "change_password", "admin", uid, "修改密码")
 
 	Success(c, nil)
 }

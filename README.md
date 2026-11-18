@@ -164,6 +164,12 @@ Important settings in `configs/config.yaml`:
 - `sanitize.*`: masking rules for collected secrets.
 - `notify.*`: webhook notification settings.
 
+SSH host-key verification is configured with environment variables (not YAML
+fields): set `NCH_SSH_KNOWN_HOSTS=/path/to/known_hosts` so SSH collectors verify
+the device host key (required by default). Only for local development you may
+set `NCH_SSH_ALLOW_INSECURE=true` to skip verification; never use it in
+production.
+
 For automated e2e tests, use `configs/config.e2e.yaml`, which writes isolated
 runtime state to `/tmp`.
 
