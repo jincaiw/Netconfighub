@@ -21,7 +21,7 @@
           v-else
           :columns="columns"
           :data="devices"
-          :pagination="tablePagination"
+          :pagination="loading ? undefined : tablePagination"
           @page-change="handlePageChange"
         />
       </t-loading>
@@ -102,12 +102,12 @@ const columns: PrimaryTableCol<Device>[] = [
           default: () => [
             h(
               Button,
-              { size: 'small', theme: 'primary', onClick: () => handleRetry(row.id) },
+              { size: 'small', variant: 'outline', onClick: () => handleRetry(row.id) },
               { default: () => '重新备份' },
             ),
             h(
               Button,
-              { size: 'small', onClick: () => router.push(`/devices/${row.id}`) },
+              { size: 'small', variant: 'outline', onClick: () => router.push(`/devices/${row.id}`) },
               { default: () => '查看详情' },
             ),
           ],

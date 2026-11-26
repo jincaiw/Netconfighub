@@ -30,7 +30,7 @@
         :columns="columns"
         :data="alerts"
         :loading="loading"
-        :pagination="tablePagination"
+        :pagination="loading ? undefined : tablePagination"
         row-key="id"
         @page-change="handlePageChange"
       >

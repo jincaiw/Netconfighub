@@ -24,7 +24,7 @@
         :loading="loading"
         :vendor-label-map="vendorLabelMap"
         :model-label-map="modelLabelMap"
-        :pagination="tablePagination"
+        :pagination="loading ? undefined : tablePagination"
         @page-change="handlePageChange"
         @toggle="handleToggleEnabled"
         @detail="(id) => router.push(`/devices/${id}`)"

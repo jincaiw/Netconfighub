@@ -51,6 +51,8 @@
             <t-button theme="primary" @click="openCreateTokenModal">创建接口令牌（Token）</t-button>
           </template>
           <t-table :columns="tokenColumns" :data="tokens" :loading="tokensLoading" row-key="id" size="small">
+            <template #created_at="{ row }">{{ formatDateTime(row.created_at) }}</template>
+            <template #expires_at="{ row }">{{ formatDateTime(row.expires_at) }}</template>
             <template #empty><span class="empty-state-text">暂无数据</span></template>
           </t-table>
         </t-card>
@@ -131,6 +133,7 @@ import { Button, DialogPlugin, MessagePlugin, type PrimaryTableCol } from 'tdesi
 import { getTokens, createToken, deleteToken } from '@/api/token'
 import { getConfigs, setConfig } from '@/api/config'
 import { changePassword } from '@/api/auth'
+import { formatDateTime } from '@/utils/datetime'
 import type { ApiToken } from '@/types'
 
 const tokens = ref<ApiToken[]>([])

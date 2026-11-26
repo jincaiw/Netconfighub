@@ -15,7 +15,7 @@
         :columns="baselineColumns"
         :data="baselines"
         :loading="loading"
-        :pagination="tablePagination"
+        :pagination="loading ? undefined : tablePagination"
         @page-change="handleBaselinePageChange"
       />
     </t-card>
@@ -25,14 +25,14 @@
       :header="editingBaseline ? '编辑基线' : '创建基线'"
       :width="560"
     >
-      <t-form :data="baselineForm" label-align="left" label-width="90px">
+      <t-form ref="baselineFormRef" :data="baselineForm" :rules="baselineRules" label-align="left" label-width="90px">
         <t-form-item v-if="!editingBaseline" label="适用范围">
           <t-radio-group v-model="baselineForm.scope">
             <t-radio value="device">设备</t-radio>
             <t-radio value="group">分组</t-radio>
           </t-radio-group>
         </t-form-item>
-        <t-form-item v-if="!editingBaseline && baselineForm.scope === 'device'" label="选择设备">
+        <t-form-item v-if="!editingBaseline && baselineForm.scope === 'device'" label="选择设备" name="device_id">
           <t-select
             v-model="baselineForm.device_id"
             :options="deviceOptions"
@@ -40,14 +40,14 @@
             filterable
           />
         </t-form-item>
-        <t-form-item v-if="!editingBaseline && baselineForm.scope === 'group'" label="选择分组">
+        <t-form-item v-if="!editingBaseline && baselineForm.scope === 'group'" label="选择分组" name="group_id">
           <t-select
             v-model="baselineForm.group_id"
             :options="groupSelectOptions"
             placeholder="请选择分组"
           />
         </t-form-item>
-        <t-form-item label="基线内容">
+        <t-form-item label="基线内容" name="content">
           <t-textarea
             v-model="baselineForm.content"
             :autosize="{ minRows: 8 }"
@@ -174,6 +174,23 @@ const baselineForm = reactive({
   group_id: undefined as number | undefined,
   content: '',
 })
+
+const baselineFormRef = ref<any>()
+const baselineRules = {
+  content: [{ required: true, message: '请输入基线配置内容', type: 'error' }],
+  device_id: [
+    {
+      validator: (v: number | undefined) =>
+        baselineForm.scope === 'device' && !v ? { result: false, message: '请选择设备' } : true,
+    },
+  ],
+  group_id: [
+    {
+      validator: (v: number | undefined) =>
+        baselineForm.scope === 'group' && !v ? { result: false, message: '请选择分组' } : true,
+    },
+  ],
+}
 
 const baselineColumns: PrimaryTableCol<Baseline>[] = [
   {
@@ -316,20 +333,8 @@ function closeCreateModal() {
 }
 
 async function handleSubmitBaseline() {
-  if (!baselineForm.content.trim()) {
-    MessagePlugin.warning('请输入基线内容')
-    return
-  }
-  if (!editingBaseline.value) {
-    if (baselineForm.scope === 'device' && !baselineForm.device_id) {
-      MessagePlugin.warning('请选择设备')
-      return
-    }
-    if (baselineForm.scope === 'group' && !baselineForm.group_id) {
-      MessagePlugin.warning('请选择分组')
-      return
-    }
-  }
+  const valid = await baselineFormRef.value?.validate()
+  if (valid !== true) return
 
   submitting.value = true
   try {

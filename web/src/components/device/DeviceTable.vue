@@ -39,7 +39,7 @@
           <t-button size="small" variant="outline" @click="emit('edit', row)">编辑</t-button>
           <t-button
             size="small"
-            theme="primary"
+            variant="outline"
             :disabled="row.collection_mode === 'sftp_push'"
             :title="row.collection_mode === 'sftp_push' ? '该设备使用 SFTP 主动上传，平台不会拉取' : ''"
             @click="emit('backup', row.id)"

@@ -64,7 +64,7 @@
       </t-card>
 
       <t-card style="margin-top: 16px">
-        <t-tabs v-model="activeTab">
+        <t-tabs v-model="activeTab" class="dashboard-tabs">
           <t-tab-panel value="latest" label="最新配置">
             <t-loading :loading="configLoading">
               <div class="config-content">
