@@ -1,28 +1,22 @@
 <template>
-  <t-row :gutter="[16, 16]">
-    <t-col v-for="card in cards" :key="card.label" :xs="12" :sm="6" :xl="3">
-      <t-card
-        class="metric-card"
-        :class="{ 'metric-card--primary': card.primary }"
+  <t-row :gutter="[16, 16]" class="top-panel">
+    <t-col v-for="(card, index) in cards" :key="card.label" :xs="6" :xl="3">
+      <div
+        class="metric-card dashboard-item"
+        :class="{ 'metric-card--primary dashboard-item--main-color': index === 0 }"
         role="link"
         tabindex="0"
-        :aria-label="`${card.label}：${card.value}${card.suffix || ''}，${card.footnote}`"
+        :aria-label="`${card.label}：${card.value}${card.suffix || ''}`"
         @click="emit('navigate', card.route)"
         @keydown.enter="emit('navigate', card.route)"
       >
-        <div class="metric-body">
-          <span class="metric-icon" :class="`metric-icon--${card.tone}`">
-            <component :is="card.icon" />
-          </span>
-          <div>
-            <div class="metric-label">{{ card.label }}</div>
-            <div class="metric-value">
-              {{ card.value }}<span v-if="card.suffix" class="metric-suffix">{{ card.suffix }}</span>
-            </div>
-          </div>
+        <div class="kpi-head">
+          <span class="kpi-title">{{ card.label }}</span>
+          <span class="kpi-icon"><component :is="card.icon" /></span>
         </div>
-        <div class="metric-footnote">{{ card.footnote }}</div>
-      </t-card>
+        <div class="kpi-value">{{ card.value }}<small v-if="card.suffix">{{ card.suffix }}</small></div>
+        <div class="metric-footnote kpi-foot">{{ card.compareLabel }}</div>
+      </div>
     </t-col>
   </t-row>
 </template>
@@ -39,160 +33,77 @@ import type { DashboardStats } from '../index'
 
 const props = defineProps<{
   stats: DashboardStats
+  tasks: unknown
 }>()
-
-type NavigateTarget = 'DeviceList' | 'FailedDevices' | 'AlertList'
-
-const emit = defineEmits<{
-  navigate: [target: NavigateTarget]
-}>()
+const emit = defineEmits<{ navigate: [target: 'DeviceList' | 'FailedDevices' | 'AlertList'] }>()
 
 const cards = computed<
   Array<{
     label: string
     value: number
     suffix?: string
-    footnote: string
+    compareLabel: string
     icon: Component
-    tone: string
-    route: NavigateTarget
-    primary?: boolean
+    route: 'DeviceList' | 'FailedDevices' | 'AlertList'
   }>
->(() => [
-  {
-    label: '设备总数',
-    value: props.stats.totalDevices,
-    footnote: '已纳管网络设备',
-    icon: ServerIcon,
-    tone: 'blue',
-    route: 'DeviceList',
-    primary: true,
-  },
-  {
-    label: '备份成功率',
-    value: props.stats.successRate,
-    suffix: '%',
-    footnote: '基于全部备份任务',
-    icon: CheckCircleIcon,
-    tone: 'green',
-    route: 'DeviceList',
-  },
-  {
-    label: '失败设备数',
-    value: props.stats.failedDevices,
-    footnote: '需要尽快处理',
-    icon: ErrorCircleIcon,
-    tone: 'red',
-    route: 'FailedDevices',
-  },
-  {
-    label: '未读告警',
-    value: props.stats.unreadAlerts,
-    footnote: '待确认告警信息',
-    icon: NotificationIcon,
-    tone: 'amber',
-    route: 'AlertList',
-  },
-])
+>(() => {
+  const s = props.stats
+  return [
+    { label: '设备总数', value: s.totalDevices, compareLabel: '近7天', icon: ServerIcon, route: 'DeviceList' },
+    { label: '备份成功率', value: s.successRate, suffix: '%', compareLabel: '近7天', icon: CheckCircleIcon, route: 'DeviceList' },
+    { label: '失败设备数', value: s.failedDevices, compareLabel: '近7天', icon: ErrorCircleIcon, route: 'FailedDevices' },
+    { label: '未读告警', value: s.unreadAlerts, compareLabel: '当前', icon: NotificationIcon, route: 'AlertList' },
+  ]
+})
 </script>
 
 <style scoped>
-.metric-card {
-  min-height: 148px;
-  cursor: pointer;
-  margin-bottom: 0;
-  border-color: var(--td-component-stroke);
-}
+.top-panel { width: 100%; }
 
-.metric-card :deep(.t-card__body) {
+/* shadcn Card：rounded-xl 边框 shadow-sm，白底，p-6 */
+.metric-card {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  min-height: 112px;
+  gap: 6px;
+  min-height: 118px;
+  padding: 22px 24px;
+  border: 1px solid var(--shadcn-border);
+  border-radius: 12px;
+  background: var(--shadcn-card);
+  box-shadow: var(--shadcn-card-shadow);
+  cursor: pointer;
 }
+.metric-card:hover { border-color: var(--shadcn-ring); }
 
-.metric-body {
+.kpi-head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
 }
-
-.metric-icon {
-  width: 42px;
-  height: 42px;
+.kpi-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--shadcn-muted-foreground);
+}
+.kpi-icon {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border-radius: 50%;
-  font-size: 22px;
+  color: var(--shadcn-muted-foreground);
+  font-size: 16px;
 }
-
-.metric-icon--blue {
-  color: var(--td-brand-color);
-  background: var(--td-brand-color-light);
-}
-
-.metric-icon--green {
-  color: var(--td-success-color-5);
-  background: var(--td-success-color-1);
-}
-
-.metric-icon--red {
-  color: var(--td-error-color-5);
-  background: var(--td-error-color-1);
-}
-
-.metric-icon--amber {
-  color: var(--td-warning-color-5);
-  background: var(--td-warning-color-1);
-}
-
-.metric-label {
-  color: var(--td-text-color-secondary);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.metric-value {
-  color: var(--td-text-color-primary);
-  font-size: 30px;
+.kpi-value {
+  margin-top: 6px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1.2;
+  color: var(--shadcn-foreground);
 }
-
-.metric-suffix {
-  font-size: 18px;
-  margin-left: 2px;
-}
-
-.metric-footnote {
-  margin-top: 12px;
-  color: var(--td-text-color-placeholder);
+.kpi-value small { font-size: 14px; font-weight: 600; margin-left: 2px; }
+.kpi-foot {
+  margin-top: 2px;
   font-size: 12px;
+  color: var(--shadcn-muted-foreground);
 }
 
-/* 使用 brand-7：浅色与 --td-brand-color 等价；深色下比 brand-8 更深，
-   使 12px 白色脚注对比度由 3.76:1 提升到 5.29:1（≥ WCAG AA 4.5:1）。 */
-.metric-card--primary {
-  background: var(--td-brand-color-7);
-  border-color: var(--td-brand-color-7);
-}
-
-.metric-card--primary .metric-label,
-.metric-card--primary .metric-value,
-.metric-card--primary .metric-footnote {
-  color: var(--td-text-color-anti);
-}
-
-.metric-card--primary .metric-icon {
-  color: var(--td-brand-color);
-  background: var(--td-text-color-anti);
-}
-
-@media (max-width: 768px) {
-  .metric-card {
-    min-height: 120px;
-  }
-}
+@media (max-width: 768px) { .metric-card { min-height: 100px; padding: 18px; } }
 </style>

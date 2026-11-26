@@ -37,7 +37,7 @@ type BackupTask struct {
 	RetryCount    int          `gorm:"default:0" json:"retry_count"`
 	MaxRetries    int          `gorm:"default:3" json:"max_retries"`
 	ConfigHash    string       `gorm:"size:64" json:"config_hash"`
-	CreatedAt     time.Time    `json:"created_at"`
+	CreatedAt     time.Time    `gorm:"index" json:"created_at"`
 }
 
 func (BackupTask) TableName() string {

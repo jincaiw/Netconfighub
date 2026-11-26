@@ -8,7 +8,7 @@
         </t-button>
         <h1>设备详情</h1>
       </div>
-      <t-space>
+      <t-space v-if="!notFound">
         <t-button
           :theme="device?.enabled ? 'warning' : 'success'"
           variant="outline"
@@ -29,9 +29,16 @@
       </t-space>
     </div>
 
-    <t-loading :loading="loading">
+    <t-card v-if="notFound" class="device-notfound" style="margin-top: 16px">
+      <t-empty description="设备不存在或已被删除">
+        <template #action>
+          <t-button variant="outline" @click="router.push('/devices')">返回设备列表</t-button>
+        </template>
+      </t-empty>
+    </t-card>
+    <t-loading v-else :loading="loading">
       <t-card title="设备信息" style="margin-top: 16px">
-        <t-descriptions bordered :column="3">
+        <t-descriptions bordered :column="descColumns">
           <t-descriptions-item label="设备名称">{{ device?.name }}</t-descriptions-item>
           <t-descriptions-item label="IP 地址">{{ device?.ip }}</t-descriptions-item>
           <t-descriptions-item label="厂商">{{ vendorLabel }}</t-descriptions-item>
@@ -135,7 +142,7 @@ v-for="(line, idx) in diffLines" :key="idx"
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { MessagePlugin, type PrimaryTableCol } from 'tdesign-vue-next'
 import { ChevronLeftIcon } from 'tdesign-icons-vue-next'
@@ -157,6 +164,7 @@ const deviationsLoading = ref(false)
 const backupLoading = ref(false)
 const diffLoading = ref(false)
 const device = ref<Device | null>(null)
+const notFound = ref(false)
 const latestConfig = ref('')
 const configVersions = ref<ConfigVersion[]>([])
 const deviations = ref<Deviation[]>([])
@@ -165,6 +173,13 @@ const activeTab = ref('latest')
 const deviceId = Number(route.params.id)
 const isSftpPush = computed(() => device.value?.collection_mode === 'sftp_push')
 const isInvalidId = Number.isNaN(deviceId) || deviceId <= 0
+
+// 响应式：窄屏减少信息表列数，避免标签竖排/内容挤压
+const viewportWidth = ref(window.innerWidth)
+const onResize = () => { viewportWidth.value = window.innerWidth }
+const descColumns = computed(() => (viewportWidth.value < 768 ? 1 : viewportWidth.value < 1100 ? 2 : 3))
+onMounted(() => window.addEventListener('resize', onResize))
+onUnmounted(() => window.removeEventListener('resize', onResize))
 const selectedFromHash = ref<string | null>(null)
 const selectedToHash = ref<string | null>(null)
 const diffResult = ref<DiffResult | null>(null)
@@ -218,8 +233,15 @@ async function fetchDevice() {
   try {
     const res = await getDevice(deviceId)
     device.value = res.data
-  } catch {
-    MessagePlugin.error('获取设备信息失败')
+    notFound.value = false
+  } catch (err: any) {
+    // 设备不存在（404）：显示友好“未找到”态，避免渲染空白详情与操作按钮。
+    if (err?.response?.status === 404) {
+      notFound.value = true
+      device.value = null
+    } else {
+      MessagePlugin.error('获取设备信息失败')
+    }
   } finally {
     loading.value = false
   }
@@ -230,8 +252,10 @@ async function fetchLatestConfig() {
   try {
     const res = await getDeviceConfig(deviceId)
     latestConfig.value = res.data.content
-  } catch {
-    MessagePlugin.error('获取设备配置失败')
+  } catch (err: any) {
+    // 设备尚无配置（404）属正常空态，不弹错误提示，由内联「暂无配置」呈现。
+    if (err?.response?.status === 404) latestConfig.value = ''
+    else MessagePlugin.error('获取设备配置失败')
   } finally {
     configLoading.value = false
   }
@@ -242,8 +266,9 @@ async function fetchConfigVersions() {
   try {
     const res = await getDeviceVersions(deviceId)
     configVersions.value = res.data
-  } catch {
-    MessagePlugin.error('获取历史版本失败')
+  } catch (err: any) {
+    if (err?.response?.status === 404) configVersions.value = []
+    else MessagePlugin.error('获取历史版本失败')
   } finally {
     versionsLoading.value = false
   }
@@ -254,8 +279,9 @@ async function fetchDeviations() {
   try {
     const res = await getDeviceDeviations(deviceId, { page: 1, page_size: 20 })
     deviations.value = res.data.items
-  } catch {
-    MessagePlugin.error('获取基线偏差失败')
+  } catch (err: any) {
+    if (err?.response?.status === 404) deviations.value = []
+    else MessagePlugin.error('获取基线偏差失败')
   } finally {
     deviationsLoading.value = false
   }

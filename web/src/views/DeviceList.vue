@@ -15,11 +15,17 @@
         />
       </template>
 
+      <div v-if="loadError" class="list-error" role="alert">
+        <span>设备列表加载失败，请重新加载</span>
+        <t-button size="small" variant="text" theme="primary" @click="fetchDevices">重新加载</t-button>
+      </div>
       <DeviceTable
         :devices="devices"
         :loading="loading"
         :vendor-label-map="vendorLabelMap"
         :model-label-map="modelLabelMap"
+        :pagination="tablePagination"
+        @page-change="handlePageChange"
         @toggle="handleToggleEnabled"
         @detail="(id) => router.push(`/devices/${id}`)"
         @edit="handleEdit"
@@ -171,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   DialogPlugin,
@@ -200,6 +206,7 @@ import type { Device, Group, DeviceCreateRequest, ImportResult } from '@/types'
 const router = useRouter()
 
 const loading = ref(false)
+const loadError = ref(false)
 const creating = ref(false)
 const exportLoading = ref(false)
 const importLoading = ref(false)
@@ -221,6 +228,22 @@ const paginationReactive = reactive({
   pageSize: 20,
   itemCount: 0,
 })
+
+const tablePagination = computed(() => ({
+  current: paginationReactive.page,
+  pageSize: paginationReactive.pageSize,
+  total: paginationReactive.itemCount,
+}))
+
+function handlePageChange(pageInfo: { current: number; pageSize: number }) {
+  if (pageInfo.pageSize && pageInfo.pageSize !== paginationReactive.pageSize) {
+    paginationReactive.pageSize = pageInfo.pageSize
+    paginationReactive.page = 1
+  } else {
+    paginationReactive.page = pageInfo.current
+  }
+  fetchDevices()
+}
 
 const vendorOptions = [
   { label: '思科', value: 'cisco' },
@@ -345,7 +368,9 @@ async function fetchDevices() {
     const res = await getDevices(params)
     devices.value = res.data.items
     paginationReactive.itemCount = res.data.total
+    loadError.value = false
   } catch {
+    loadError.value = true
     MessagePlugin.error('获取设备列表失败')
   } finally {
     loading.value = false
@@ -556,43 +581,6 @@ onMounted(() => {
 
 .device-list {
   width: 100%;
-}
-
-.device-table-wrap {
-  width: 100%;
-  overflow-x: auto;
-}
-
-.device-table {
-  width: 100%;
-  min-width: 1080px;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.device-table th,
-.device-table td {
-  border-bottom: 1px solid var(--td-component-stroke);
-  padding: 12px;
-  text-align: left;
-  vertical-align: middle;
-  white-space: nowrap;
-}
-
-.device-table th {
-  color: var(--td-text-color-primary);
-  font-weight: 600;
-  background: var(--td-bg-color-container-hover);
-}
-
-.device-table tr:hover td {
-  background: var(--td-bg-color-container-hover);
-}
-
-.table-empty {
-  color: var(--td-text-color-placeholder);
-  text-align: center;
-  padding: 32px 12px;
 }
 
 .import-hint {

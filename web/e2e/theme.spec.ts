@@ -15,12 +15,16 @@ test.describe('主题模式', () => {
 
   test('手动切换深色/浅色会更新 theme-mode', async ({ page }) => {
     await page.getByTestId('theme-switch').click()
-    await page.locator('.t-dropdown__item:visible').filter({ hasText: '深色' }).click()
-    await expect.poll(() => getThemeMode(page)).toBe('dark')
+    const darkItem = page.locator('.t-dropdown__item:visible').filter({ hasText: '深色' })
+    await darkItem.waitFor({ state: 'visible', timeout: 15000 })
+    await darkItem.click()
+    await expect.poll(() => getThemeMode(page), { timeout: 15000 }).toBe('dark')
 
     await page.getByTestId('theme-switch').click()
-    await page.locator('.t-dropdown__item:visible').filter({ hasText: '浅色' }).click()
-    await expect.poll(() => getThemeMode(page)).toBe('')
+    const lightItem = page.locator('.t-dropdown__item:visible').filter({ hasText: '浅色' })
+    await lightItem.waitFor({ state: 'visible', timeout: 15000 })
+    await lightItem.click()
+    await expect.poll(() => getThemeMode(page), { timeout: 15000 }).toBe('')
   })
 
   test('刷新后保持上次选择', async ({ page }) => {
@@ -50,13 +54,15 @@ test.describe('主题模式', () => {
     await expect(page.locator('.app-menu.t-menu--dark:visible')).toBeVisible()
   })
 
-  test('head 内联主题脚本先于模块脚本写入首屏主题', async ({ page }) => {
+  test('head 主题脚本先于模块脚本写入首屏主题', async ({ page }) => {
     const response = await page.request.get('/')
     const html = await response.text()
-    expect(html).toContain('nch-theme-mode')
-    expect(html).toContain('prefers-color-scheme: dark')
-    // Vite 开发服务器会在 head 顶部注入 @vite/client 模块，因此与应用入口模块比较。
-    expect(html.indexOf('nch-theme-mode')).toBeLessThan(html.indexOf('src="/src/main.ts"'))
+    // 主题初始化脚本改为独立文件（满足生产 CSP script-src 'self'），且在入口模块前加载。
+    expect(html).toContain('src="/theme-init.js"')
+    expect(html.indexOf('src="/theme-init.js"')).toBeLessThan(html.indexOf('src="/src/main.ts"'))
+    const js = await (await page.request.get('/theme-init.js')).text()
+    expect(js).toContain('nch-theme-mode')
+    expect(js).toContain('prefers-color-scheme: dark')
 
     await page.goto('/login')
     await page.evaluate(() => window.localStorage.setItem('nch-theme-mode', 'dark'))

@@ -1,0 +1,182 @@
+/*
+ * shadcn-admin 主题令牌层（复刻 satnaing/shadcn-admin 的中性锌灰设计）。
+ * 在 TDesign 组件样式之后引入，覆盖关键 --td-* 语义令牌为 shadcn 的 zinc 色阶；
+ * 保留 TDesign 组件的行为/尺寸，仅替换配色与圆角观感。
+ *
+ * shadcn 原始值用 oklch；此处用等价 zinc hex 供 TDesign/CSS 使用，
+ * canvas 图表另见 config/chartColors.ts。
+ */
+:root {
+  --shadcn-radius: 0.625rem;
+  --shadcn-background: #ffffff;
+  --shadcn-foreground: #18181b;
+  --shadcn-card: #ffffff;
+  --shadcn-card-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadcn-muted: #f4f4f5;
+  --shadcn-muted-foreground: #71717a;
+  --shadcn-border: #e4e4e7;
+  --shadcn-primary: #27272a;
+  --shadcn-primary-foreground: #fafafa;
+  --shadcn-ring: #a1a1aa;
+  --shadcn-chart-1: #f97316;
+  --shadcn-chart-2: #0d9488;
+  --shadcn-chart-3: #2563eb;
+  --shadcn-chart-4: #ca8a04;
+  --shadcn-chart-5: #dc2626;
+
+  /* TDesign → shadcn 中性覆盖 */
+  --td-radius-default: 6px;
+  --td-radius-medium: 8px;
+  --td-radius-large: 10px;
+  --td-radius-small: 4px;
+  --td-brand-color: var(--shadcn-primary);
+  --td-brand-color-7: var(--shadcn-primary);
+  --td-brand-color-hover: #3f3f46;
+  --td-brand-color-active: #18181b;
+  --td-brand-color-light: #f4f4f5;
+  /* 中性 brand 色阶（覆盖 TDesign 默认蓝色，含禁用/浅色按钮） */
+  --td-brand-color-1: #f4f4f5;
+  --td-brand-color-2: #e4e4e7;
+  --td-brand-color-3: #d4d4d8;
+  --td-brand-color-4: #a1a1aa;
+  --td-brand-color-5: #71717a;
+  --td-brand-color-6: #3f3f46;
+  --td-brand-color-8: #18181b;
+  --td-brand-color-9: #09090b;
+  --td-brand-color-10: #000000;
+  --td-brand-color-disabled: #d4d4d8;
+  --td-brand-color-focus: var(--shadcn-ring);
+  --td-text-color-primary: var(--shadcn-foreground);
+  --td-text-color-secondary: var(--shadcn-muted-foreground);
+  --td-text-color-placeholder: #a1a1aa;
+  --td-text-color-anti: var(--shadcn-primary-foreground);
+  --td-text-color-brand: var(--shadcn-primary);
+  --td-bg-color-page: #fafafa;
+  --td-bg-color-container: var(--shadcn-card);
+  --td-bg-color-container-hover: #fafafa;
+  --td-bg-color-component: var(--shadcn-muted);
+  --td-bg-color-component-hover: #e4e4e7;
+  --td-component-stroke: var(--shadcn-border);
+  --td-border-level-1-color: var(--shadcn-border);
+}
+
+:root[theme-mode='dark'] {
+  --shadcn-background: #18181b;
+  --shadcn-foreground: #fafafa;
+  --shadcn-card: #1f1f22;
+  --shadcn-card-shadow: none;
+  --shadcn-muted: #3f3f46;
+  --shadcn-muted-foreground: #a1a1aa;
+  --shadcn-border: rgba(255, 255, 255, 0.1);
+  --shadcn-primary: #e4e4e7;
+  --shadcn-primary-foreground: #18181b;
+  --shadcn-ring: #71717a;
+  --shadcn-chart-1: #818cf8;
+  --shadcn-chart-2: #34d399;
+  --shadcn-chart-3: #fbbf24;
+  --shadcn-chart-4: #c084fc;
+  --shadcn-chart-5: #fb7185;
+
+  --td-brand-color: var(--shadcn-primary);
+  --td-brand-color-7: var(--shadcn-primary);
+  --td-brand-color-hover: #ffffff;
+  --td-brand-color-active: #cfcfcf;
+  --td-brand-color-light: #27272a;
+  /* 中性 brand 色阶（暗色反向，覆盖默认蓝色，含禁用/浅色按钮） */
+  --td-brand-color-1: #27272a;
+  --td-brand-color-2: #3f3f46;
+  --td-brand-color-3: #52525b;
+  --td-brand-color-4: #71717a;
+  --td-brand-color-5: #a1a1aa;
+  --td-brand-color-6: #d4d4d8;
+  --td-brand-color-8: #f4f4f5;
+  --td-brand-color-9: #fafafa;
+  --td-brand-color-10: #ffffff;
+  --td-brand-color-disabled: #3f3f46;
+  --td-text-color-primary: var(--shadcn-foreground);
+  --td-text-color-secondary: var(--shadcn-muted-foreground);
+  --td-text-color-placeholder: #71717a;
+  --td-text-color-anti: var(--shadcn-primary-foreground);
+  --td-bg-color-page: #09090b;
+  --td-bg-color-container: var(--shadcn-card);
+  --td-bg-color-container-hover: #27272a;
+  --td-bg-color-component: var(--shadcn-muted);
+  --td-component-stroke: var(--shadcn-border);
+  --td-border-level-1-color: var(--shadcn-border);
+}
+
+/* shadcn 风格紧凑卡：细边框、浅阴影、10px 圆角 */
+.main-content .t-card {
+  border: 1px solid var(--shadcn-border);
+  border-radius: var(--shadcn-radius);
+  box-shadow: var(--shadcn-card-shadow);
+}
+:root[theme-mode='dark'] .main-content .t-card {
+  box-shadow: var(--shadcn-card-shadow);
+}
+
+/* 主按钮改中性（shadcn primary 为近黑/近白） */
+.t-button.t-button--theme-primary {
+  --td-brand-color: var(--shadcn-primary);
+  color: var(--shadcn-primary-foreground);
+}
+
+/* ===== shadcn Card chrome：rounded-xl 边框 shadow-sm，内边距 24px ===== */
+.main-content .t-card {
+  padding: 0;
+}
+.main-content .t-card .t-card__header {
+  padding: 24px 24px 0;
+}
+.main-content .t-card .t-card__body {
+  padding: 20px 24px 24px;
+}
+.main-content .t-card .t-card__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--shadcn-foreground);
+}
+
+/* ===== shadcn 分段式 Tabs（TabsList）：浅灰容器 + 白色激活项 ===== */
+.dashboard-tabs .t-tabs__bar { display: none !important; }
+.dashboard-tabs .t-tabs__nav-wrap::after { display: none !important; }
+.dashboard-tabs .t-tabs__nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 36px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--shadcn-muted);
+}
+.dashboard-tabs .t-tabs__nav-item {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  margin: 0;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--shadcn-muted-foreground);
+  transition: color 0.15s, background 0.15s;
+}
+.dashboard-tabs .t-tabs__nav-item:hover { color: var(--shadcn-foreground); }
+.dashboard-tabs .t-tabs__nav-item.t-is-active {
+  background: var(--shadcn-card);
+  color: var(--shadcn-foreground);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  font-weight: 600;
+}
+.dashboard-tabs .t-tabs__nav-item.t-is-disabled { opacity: 0.5; }
+.dashboard-tabs .t-tabs__header { margin-bottom: 16px; }
+
+/* 窄屏：分段 Tabs 支持横向滚动，避免标签被裁切（如 Notifications 不可达）。
+   本版 TDesign 的 .t-tabs__nav 是 header 的直接子元素（无 nav-wrap），故让其自身滚动。 */
+.dashboard-tabs .t-tabs__nav {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.dashboard-tabs .t-tabs__nav::-webkit-scrollbar { display: none; }

@@ -265,7 +265,7 @@ onMounted(() => {
   padding: 8px 12px;
   border: 1px solid var(--td-error-color-2);
   border-radius: var(--td-radius-default);
-  color: var(--td-error-color);
+  color: var(--td-error-color-8);
   background: var(--td-error-color-1);
   font-size: 13px;
 }

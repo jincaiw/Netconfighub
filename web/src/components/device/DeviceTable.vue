@@ -4,9 +4,11 @@
       :data="devices"
       :columns="columns"
       :loading="loading"
+      :pagination="pagination"
       row-key="id"
       size="small"
       table-layout="fixed"
+      @page-change="(p: any) => emit('page-change', p)"
     >
       <template #name="{ row }">{{ row.name }}</template>
       <template #vendor="{ row }">{{ vendorLabelMap[row.vendor] || row.vendor }}</template>
@@ -63,6 +65,7 @@ defineProps<{
   loading: boolean
   vendorLabelMap: Record<string, string>
   modelLabelMap: Record<string, string>
+  pagination?: Record<string, any>
 }>()
 
 const emit = defineEmits<{
@@ -71,6 +74,7 @@ const emit = defineEmits<{
   (e: 'edit', device: Device): void
   (e: 'backup', id: number): void
   (e: 'delete', device: Device): void
+  (e: 'page-change', payload: { current: number; pageSize: number }): void
 }>()
 
 // 保留原生 table/tr 渲染（E2E 依赖 page.locator('table') / page.locator('tr')），

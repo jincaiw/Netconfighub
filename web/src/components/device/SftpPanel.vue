@@ -10,6 +10,10 @@
     <t-alert v-if="status && !status.enabled" theme="warning" class="sftp-alert">
       服务端未启用 SFTP 监听，设备无法上传。请在服务器配置中设置 <code>sftp.enabled=true</code> 后重启。
     </t-alert>
+    <t-alert v-if="statusError" theme="error" class="sftp-alert">
+      SFTP 服务信息加载失败。
+      <t-button size="small" variant="text" theme="primary" @click="fetchStatus">重试</t-button>
+    </t-alert>
 
     <t-descriptions bordered :column="2" class="sftp-conn">
       <t-descriptions-item label="服务地址">
@@ -53,6 +57,11 @@
     </t-space>
 
     <t-divider>最近上传</t-divider>
+
+    <t-alert v-if="uploadsError" theme="error" class="sftp-alert">
+      上传记录加载失败。
+      <t-button size="small" variant="text" theme="primary" @click="fetchUploads">重试</t-button>
+    </t-alert>
 
     <t-table
       :data="uploads"
@@ -136,6 +145,8 @@ const uploads = ref<SftpUpload[]>([])
 const accountLoading = ref(false)
 const uploadsLoading = ref(false)
 const retryingId = ref<number | null>(null)
+const statusError = ref(false)
+const uploadsError = ref(false)
 
 const showPasswordDialog = ref(false)
 const oneTimeUsername = ref('')
@@ -187,8 +198,10 @@ async function fetchStatus() {
   try {
     const res = await getSftpStatus()
     status.value = res.data
+    statusError.value = false
   } catch {
     status.value = null
+    statusError.value = true
   }
 }
 
@@ -207,8 +220,10 @@ async function fetchUploads() {
   try {
     const res = await getSftpUploads(props.deviceId, { page: 1, page_size: 20 })
     uploads.value = res.data.items || []
+    uploadsError.value = false
   } catch {
     uploads.value = []
+    uploadsError.value = true
   } finally {
     uploadsLoading.value = false
   }

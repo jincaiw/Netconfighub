@@ -1,5 +1,5 @@
 <template>
-  <t-space>
+  <t-space break-line>
     <t-input
       v-model="keyword"
       placeholder="搜索设备名称/IP"

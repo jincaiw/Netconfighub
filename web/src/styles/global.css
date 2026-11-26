@@ -7,6 +7,15 @@
  * 不再全局命中弹层/登录页等挂载点；并排除自带反向覆盖的指标卡，避免互相抵消。
  */
 
+/* Inter 自托管（variable，weight 100-900，latin 子集）。避免外部字体被生产 CSP 拦截。 */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-latin-wght.woff2') format('woff2');
+}
+
 /* 统一键盘焦点反馈：仅作用于可聚焦的交互元素，不改变既有配色 token。 */
 a:focus-visible,
 button:focus-visible,
@@ -32,8 +41,8 @@ html,
 body {
   width: 100%;
   height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    'Noto Sans', sans-serif;
+  font-family: 'Inter', 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   color: var(--td-text-color-primary);
@@ -130,4 +139,56 @@ a {
     width: 90% !important;
     max-width: 420px;
   }
+}
+
+/* 响应式：窄屏下卡片头部（标题 + 操作工具栏）换行堆叠，
+   避免标题被压缩成竖排、操作栏（搜索/筛选/按钮）溢出裁切。 */
+@media (max-width: 768px) {
+  .main-content .t-card__header {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .main-content .t-card__header-wrapper {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .main-content .t-card__actions {
+    flex: 1 1 100%;
+    min-width: 0;
+    margin-top: 0;
+  }
+  .main-content .t-card__actions .t-space {
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 8px !important;
+  }
+  .main-content .t-card__actions .t-space-item {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .main-content .t-card__actions .t-space .t-input__wrap,
+  .main-content .t-card__actions .t-space .t-select,
+  .main-content .t-card__actions .t-space .t-button {
+    width: 100% !important;
+  }
+}
+
+/* 列表加载失败的统一内联错误条（与 AlertList/AuditLogs 一致），避免失败被误显示为“暂无数据”。 */
+.main-content .list-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--td-error-color-2);
+  border-radius: var(--td-radius-default);
+  color: var(--td-error-color-8);
+  background: var(--td-error-color-1);
+  font-size: 13px;
+}
+
+/* 错误条内的“重新加载”文字按钮：强制使用语义错误色，避免 primary 反白在浅粉底上不可见（对比度不足）。 */
+.main-content .list-error .t-button {
+  color: var(--td-error-color-8) !important;
 }

@@ -6,7 +6,7 @@ import { login } from './helpers'
 test.describe('首页任务概览跳转（P2 回归）', () => {
   test('“查看设备”按钮跳转到设备管理页', async ({ page }) => {
     await login(page)
-    await expect(page.getByText('最近备份任务')).toBeVisible()
+    await expect(page.getByText('本月备份次数')).toBeVisible()
     await page.getByRole('button', { name: '查看设备' }).click()
     await expect(page).toHaveURL(/\/devices$/)
     await expect(page.locator('.t-card__title').filter({ hasText: '设备管理' })).toBeVisible()
@@ -14,7 +14,7 @@ test.describe('首页任务概览跳转（P2 回归）', () => {
 
   test('“查看全部”按钮跳转到失败设备页', async ({ page }) => {
     await login(page)
-    await expect(page.getByText('失败设备概览')).toBeVisible()
+    await expect(page.getByText('查看全部')).toBeVisible()
     await page.getByRole('button', { name: '查看全部' }).click()
     await expect(page).toHaveURL(/\/failed$/)
     await expect(page.locator('.t-card__title').filter({ hasText: '失败设备列表' })).toBeVisible()
@@ -50,8 +50,9 @@ test.describe('仪表盘响应式栅格', () => {
     expect(overview).toHaveLength(2)
     expect(Math.abs(overview[0].y - overview[1].y)).toBeLessThan(2)
     const ratio = overview[0].width / overview[1].width
-    expect(ratio).toBeGreaterThan(1.8)
-    expect(ratio).toBeLessThan(2.2)
+    // starter 主题为 9:3 分栏（约 3:1），非旧自定义的 8:4。
+    expect(ratio).toBeGreaterThan(2.5)
+    expect(ratio).toBeLessThan(4)
 
     await page.setViewportSize({ width: 1024, height: 768 })
     const midCards = await cardBoxes(page, '.metric-card')

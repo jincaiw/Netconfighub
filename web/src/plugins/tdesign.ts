@@ -16,6 +16,9 @@ import {
   ConfigProvider,
   Content,
   DatePicker,
+  DateRangePicker,
+  Icon,
+  Link,
   Descriptions,
   DescriptionsItem,
   Dialog,
@@ -32,9 +35,11 @@ import {
   Layout,
   Loading,
   Menu,
+  MenuGroup,
   MenuItem,
   Radio,
   RadioGroup,
+  RadioButton,
   Row,
   Select,
   Space,
@@ -54,6 +59,7 @@ import 'tdesign-vue-next/es/breadcrumb/style/index.css'
 import 'tdesign-vue-next/es/button/style/index.css'
 import 'tdesign-vue-next/es/card/style/index.css'
 import 'tdesign-vue-next/es/date-picker/style/index.css'
+import 'tdesign-vue-next/es/link/style/index.css'
 import 'tdesign-vue-next/es/descriptions/style/index.css'
 import 'tdesign-vue-next/es/dialog/style/index.css'
 import 'tdesign-vue-next/es/divider/style/index.css'
@@ -91,6 +97,9 @@ const components: Record<string, Component> = {
   TConfigProvider: ConfigProvider,
   TContent: Content,
   TDatePicker: DatePicker,
+  TDateRangePicker: DateRangePicker,
+  TIcon: Icon,
+  TLink: Link,
   TDescriptions: Descriptions,
   TDescriptionsItem: DescriptionsItem,
   TDialog: Dialog,
@@ -107,9 +116,11 @@ const components: Record<string, Component> = {
   TLayout: Layout,
   TLoading: Loading,
   TMenu: Menu,
+  TMenuGroup: MenuGroup,
   TMenuItem: MenuItem,
   TRadio: Radio,
   TRadioGroup: RadioGroup,
+  TRadioButton: RadioButton,
   TRow: Row,
   TResult,
   TSelect: Select,

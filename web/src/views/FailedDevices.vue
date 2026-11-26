@@ -7,8 +7,12 @@
         </t-button>
       </template>
 
+      <div v-if="loadError" class="list-error" role="alert">
+        <span>失败设备列表加载失败，请重新加载</span>
+        <t-button size="small" variant="text" theme="primary" @click="fetchFailedDevices">重新加载</t-button>
+      </div>
       <t-loading :loading="loading">
-        <t-empty v-if="!loading && devices.length === 0" description="暂无失败设备，所有设备备份正常">
+        <t-empty v-if="!loadError && !loading && devices.length === 0" description="暂无失败设备，所有设备备份正常">
           <template #action>
             <t-button size="small" variant="outline" @click="router.push('/devices')">查看所有设备</t-button>
           </template>
@@ -37,6 +41,7 @@ import type { Device } from '@/types'
 const router = useRouter()
 
 const loading = ref(false)
+const loadError = ref(false)
 const retryingAll = ref(false)
 const devices = ref<Device[]>([])
 
@@ -120,7 +125,9 @@ async function fetchFailedDevices() {
     })
     devices.value = res.data.items
     paginationReactive.itemCount = res.data.total
+    loadError.value = false
   } catch {
+    loadError.value = true
     MessagePlugin.error('获取失败设备列表失败')
   } finally {
     loading.value = false

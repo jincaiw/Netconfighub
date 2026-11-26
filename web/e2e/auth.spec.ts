@@ -8,8 +8,8 @@ test.describe('登录/登出流程', () => {
     await expect(page.getByText('设备总数')).toBeVisible()
     await expect(page.getByText('备份成功率')).toBeVisible()
     await expect(page.getByText('备份趋势')).toBeVisible()
-    await expect(page.getByText('失败次数 TOP5')).toBeVisible()
-    await expect(page.getByText('最近备份任务')).toBeVisible()
+    await expect(page.getByText('失败次数排名')).toBeVisible()
+    await expect(page.getByText('备份量趋势')).toBeVisible()
   })
 
   test('错误密码登录失败，显示错误提示', async ({ page }) => {

@@ -10,3 +10,11 @@ web/test-results
 web/playwright-report
 *.db
 *.log
+.gocache
+.gomodcache
+.devflow
+.dsh
+.claude
+artifacts
+.agents
+netconfighub

@@ -6,12 +6,24 @@
     class="app-menu"
     @change="handleMenuSelect"
   >
-    <t-menu-item v-for="item in menuItems" :key="item.key" :value="item.key">
-      <template #icon>
-        <component :is="item.icon" />
-      </template>
-      {{ item.label }}
-    </t-menu-item>
+    <t-menu-group title="总览">
+      <t-menu-item value="Dashboard">
+        <template #icon><DashboardIcon /></template>
+        仪表盘
+      </t-menu-item>
+    </t-menu-group>
+    <t-menu-group title="运维监控">
+      <t-menu-item v-for="item in opsItems" :key="item.key" :value="item.key">
+        <template #icon><component :is="item.icon" /></template>
+        {{ item.label }}
+      </t-menu-item>
+    </t-menu-group>
+    <t-menu-group title="系统">
+      <t-menu-item value="Settings">
+        <template #icon><SettingIcon /></template>
+        系统设置
+      </t-menu-item>
+    </t-menu-group>
   </t-menu>
 </template>
 
@@ -29,13 +41,8 @@ import {
   SettingIcon,
 } from 'tdesign-icons-vue-next'
 
-defineProps<{
-  collapsed: boolean
-}>()
-
-const emit = defineEmits<{
-  navigate: []
-}>()
+defineProps<{ collapsed: boolean }>()
+const emit = defineEmits<{ navigate: [] }>()
 
 const router = useRouter()
 const route = useRoute()
@@ -47,14 +54,12 @@ const activeKey = computed(() => {
   return name
 })
 
-const menuItems: Array<{ label: string; key: string; icon: Component }> = [
-  { label: '仪表盘', key: 'Dashboard', icon: DashboardIcon },
+const opsItems: Array<{ label: string; key: string; icon: Component }> = [
   { label: '设备管理', key: 'DeviceList', icon: ServerIcon },
   { label: '失败设备', key: 'FailedDevices', icon: ErrorTriangleIcon },
   { label: '告警管理', key: 'AlertList', icon: NotificationIcon },
   { label: '基线管理', key: 'BaselineManage', icon: SecuredIcon },
   { label: '审计日志', key: 'AuditLogs', icon: FileIcon },
-  { label: '系统设置', key: 'Settings', icon: SettingIcon },
 ]
 
 function handleMenuSelect(key: string | number) {
@@ -76,5 +81,12 @@ function handleMenuSelect(key: string | number) {
 
 :deep(.t-menu__item.t-is-active) {
   font-weight: 600;
+}
+
+:deep(.t-menu-group__title) {
+  color: var(--shadcn-muted-foreground);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 12px 8px 4px;
 }
 </style>

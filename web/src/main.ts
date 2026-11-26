@@ -4,6 +4,7 @@ import App from './App.vue'
 import router from './router'
 import { useSettingStore } from './stores/setting'
 import { setupTDesign } from './plugins/tdesign'
+import './styles/shadcn-theme.css'
 import './styles/global.css'
 
 const app = createApp(App)

@@ -1,132 +1,181 @@
 <template>
-  <t-card title="备份趋势" :bordered="false" class="trend-card">
-    <div v-if="hasData" ref="chartEl" class="trend-chart" data-testid="trend-chart" />
-    <t-empty v-else description="暂无备份任务数据" />
-  </t-card>
+  <t-row :gutter="16" class="middle-chart">
+    <t-col :xs="12" :xl="9">
+      <t-card :title="'备份趋势'" :subtitle="currentRange" class="dashboard-chart-card" :bordered="false">
+        <template #actions>
+          <t-date-range-picker
+            class="card-date-picker-container"
+            theme="primary"
+            mode="date"
+            :default-value="last7"
+            @change="onRangeChange"
+          />
+        </template>
+        <div v-if="hasTrend" ref="lineEl" class="dashboard-chart-container" :style="{ width: '100%', height: `${resizeTime * 326}px` }" />
+        <t-empty v-else description="暂无备份任务数据" />
+      </t-card>
+    </t-col>
+    <t-col :xs="12" :xl="3">
+      <t-card :title="'状态分布'" :subtitle="currentRange" class="dashboard-chart-card" :bordered="false">
+        <div v-if="hasPie" ref="pieEl" class="dashboard-chart-container" :style="{ width: '100%', height: `${resizeTime * 326}px` }" />
+        <t-empty v-else description="暂无状态数据" />
+      </t-card>
+    </t-col>
+  </t-row>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { LineChart } from 'echarts/charts'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { BarChart, PieChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
 import { useSettingStore } from '@/stores/setting'
 import type { BackupTask } from '@/types'
-import { aggregateByDay } from '../index'
+import { aggregateByDay, statusDistribution } from '../index'
 
-echarts.use([LineChart, GridComponent, TooltipComponent, LegendComponent, CanvasRenderer])
+echarts.use([TooltipComponent, LegendComponent, PieChart, GridComponent, BarChart, CanvasRenderer])
 
-const props = defineProps<{
-  tasks: BackupTask[]
-}>()
-
+const props = defineProps<{ tasks: BackupTask[] }>()
 const settingStore = useSettingStore()
-const chartEl = ref<HTMLElement | null>(null)
-let chart: echarts.ECharts | null = null
+const resizeTime = ref(1)
+const lineEl = ref<HTMLElement | null>(null)
+const pieEl = ref<HTMLElement | null>(null)
+let lineChart: echarts.ECharts | null = null
+let pieChart: echarts.ECharts | null = null
 let observer: ResizeObserver | null = null
+let rangeDays = 7
 
-const points = computed(() => aggregateByDay(props.tasks, 7))
-const hasData = computed(() => points.value.some((p) => p.success > 0 || p.failed > 0))
+function iso(d: Date): string { return d.toISOString().slice(0, 10) }
+const last7 = ref<[string, string]>([
+  iso(new Date(Date.now() - 6 * 86400000)),
+  iso(new Date()),
+])
+const currentRange = computed(() => `${last7.value[0]} 至 ${last7.value[1]}`)
 
-function buildOption(): echarts.EChartsCoreOption {
-  const colors = settingStore.chartColors
+const lineData = computed(() => aggregateByDay(props.tasks, rangeDays))
+const hasTrend = computed(() => lineData.value.some((p) => p.total > 0))
+const pieSlices = computed(() => statusDistribution(props.tasks))
+const hasPie = computed(() => pieSlices.value.length > 0)
+
+function barOption(): echarts.EChartsCoreOption {
+  const c = settingStore.chartColors
+  const days = lineData.value.map((p) => p.date.slice(5))
+  // shadcn Overview：主色填充的圆角柱状图（primary 近黑/近白，随主题）
+  const primary = c.primaryColor
   return {
-    color: colors.seriesColors,
-    textStyle: { color: colors.textColor },
     tooltip: {
       trigger: 'axis',
-      backgroundColor: colors.containerColor,
-      borderColor: colors.borderColor,
-      textStyle: { color: colors.textColor },
+      backgroundColor: c.containerColor,
+      borderColor: c.borderColor,
+      textStyle: { color: c.textColor },
     },
-    legend: {
-      data: ['成功', '失败'],
-      textStyle: { color: colors.textColor },
-    },
-    grid: { left: 40, right: 20, top: 48, bottom: 32 },
+    grid: { left: 8, right: 16, top: 12, bottom: 8, containLabel: true },
     xAxis: {
       type: 'category',
-      boundaryGap: false,
-      data: points.value.map((p) => p.date),
-      axisLabel: { color: colors.placeholderColor },
-      axisLine: { lineStyle: { color: colors.borderColor } },
+      data: days,
+      axisTick: { show: false },
+      axisLine: { lineStyle: { color: c.borderColor } },
+      axisLabel: { color: c.placeholderColor, fontSize: 12 },
     },
     yAxis: {
       type: 'value',
-      minInterval: 1,
-      axisLabel: { color: colors.placeholderColor },
-      axisLine: { lineStyle: { color: colors.borderColor } },
-      splitLine: { lineStyle: { color: colors.borderColor, type: 'dashed' } },
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: { color: c.placeholderColor, fontSize: 12 },
+      splitLine: { lineStyle: { color: c.borderColor } },
     },
-    series: [
-      {
-        name: '成功',
-        type: 'line',
-        smooth: true,
-        symbolSize: 6,
-        data: points.value.map((p) => p.success),
-      },
-      {
-        name: '失败',
-        type: 'line',
-        smooth: true,
-        symbolSize: 6,
-        data: points.value.map((p) => p.failed),
-      },
-    ],
+    series: [{
+      name: '备份量',
+      type: 'bar',
+      data: lineData.value.map((p) => p.total),
+      barMaxWidth: 28,
+      itemStyle: { color: primary, borderRadius: [4, 4, 0, 0] },
+    }],
   }
 }
 
-function initChart() {
-  if (chart || !chartEl.value) return
-  chart = echarts.init(chartEl.value)
-  chart.setOption(buildOption(), true)
-  if (typeof ResizeObserver !== 'undefined') {
-    observer = new ResizeObserver(() => chart?.resize())
-    observer.observe(chartEl.value)
+function pieOption(): echarts.EChartsCoreOption {
+  const c = settingStore.chartColors
+  const total = pieSlices.value.reduce((a, s) => a + s.value, 0)
+  // starter 中心展示「最大通道占比」；这里映射为最大状态占比，避免无成功任务时误标「成功占比 100%」。
+  const top = [...pieSlices.value].sort((a, b) => b.value - a.value)[0]
+  const topPercent = total > 0 && top ? Math.round((top.value / total) * 100) : 0
+  const centerName = top ? `${top.name}占比` : '状态占比'
+  return {
+    color: c.seriesColors,
+    tooltip: { show: false },
+    legend: { data: pieSlices.value.map((s) => s.name), textStyle: { color: c.placeholderColor }, left: 'center', bottom: 0, itemWidth: 12, itemHeight: 4 },
+    series: [{
+      name: '状态分布',
+      type: 'pie',
+      radius: ['48%', '60%'],
+      avoidLabelOverlap: true,
+      silent: true,
+      itemStyle: { borderColor: c.containerColor, borderWidth: 1 },
+      label: {
+        show: true,
+        position: 'center',
+        formatter: [`{value|${topPercent}%}`, `{name|${centerName}}`].join('\n'),
+        rich: {
+          value: { color: c.textColor, fontSize: 28, fontWeight: 'normal', lineHeight: 46 },
+          name: { color: c.placeholderColor, fontSize: 12, lineHeight: 14 },
+        },
+      },
+      labelLine: { show: false },
+      data: pieSlices.value,
+    }],
   }
+}
+
+function render(): void {
+  if (lineEl.value && hasTrend.value) {
+    if (!lineChart) lineChart = echarts.init(lineEl.value)
+    lineChart.setOption(barOption(), true)
+  }
+  if (pieEl.value && hasPie.value) {
+    if (!pieChart) pieChart = echarts.init(pieEl.value)
+    pieChart.setOption(pieOption(), true)
+  }
+}
+
+function onRangeChange(value: unknown): void {
+  const v = value as string[] | null
+  if (!v || v.length < 2) return
+  last7.value = [v[0], v[1]]
+  const days = Math.max(1, Math.round((Date.parse(v[1]) - Date.parse(v[0])) / 86400000) + 1)
+  rangeDays = Math.min(days, 365)
+  render()
+}
+
+function updateSize(): void {
+  const w = document.documentElement.clientWidth
+  resizeTime.value = w >= 1400 && w < 1920 ? Number((w / 2080).toFixed(2)) : w < 1080 ? Number((w / 1080).toFixed(2)) : 1
+  lineChart?.resize(); pieChart?.resize()
 }
 
 onMounted(() => {
-  initChart()
+  nextTick(() => {
+    render()
+    updateSize()
+    observer = new ResizeObserver(() => { lineChart?.resize(); pieChart?.resize() })
+    if (lineEl.value) observer.observe(lineEl.value)
+    if (pieEl.value) observer.observe(pieEl.value)
+  })
 })
-
-// 直接监听配色来源：主题切换与 auto 系统偏好变化都会更新 chartColors，触发重绘。
-watch(() => settingStore.chartColors, () => {
-  chart?.setOption(buildOption(), true)
-})
-
-watch([hasData, () => props.tasks], async () => {
-  await nextTick()
-  if (!chart) {
-    initChart()
-  } else {
-    chart.setOption(buildOption(), true)
-  }
-})
-
-onUnmounted(() => {
+watch(() => settingStore.displayMode, render)
+watch([lineData, pieSlices], render, { deep: true })
+onBeforeUnmount(() => {
   observer?.disconnect()
-  observer = null
-  chart?.dispose()
-  chart = null
+  lineChart?.dispose(); pieChart?.dispose()
 })
 </script>
 
 <style scoped>
-.trend-card {
-  border-radius: var(--td-radius-medium);
-}
-
-.trend-chart {
-  width: 100%;
-  height: 326px;
-}
-
-@media (max-width: 768px) {
-  .trend-chart {
-    height: 260px;
-  }
-}
+.middle-chart { width: 100%; }
+.dashboard-chart-card { padding: var(--td-comp-paddingTB-xxl) var(--td-comp-paddingLR-xxl); }
+.dashboard-chart-card :deep(.t-card__header) { padding: 0; }
+.dashboard-chart-card :deep(.t-card__body) { padding: 0; margin-top: var(--td-comp-margin-xxl); }
+.dashboard-chart-card :deep(.t-card__title) { font: var(--td-font-title-large); font-weight: 400; }
+.dashboard-chart-container { display: block; }
 </style>

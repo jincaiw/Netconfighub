@@ -7,6 +7,10 @@
           <t-button theme="primary" @click="openCreateModal">创建基线</t-button>
         </t-space>
       </template>
+      <div v-if="loadError" class="list-error" role="alert">
+        <span>基线列表加载失败，请重新加载</span>
+        <t-button size="small" variant="text" theme="primary" @click="fetchBaselines">重新加载</t-button>
+      </div>
       <t-table
         :columns="baselineColumns"
         :data="baselines"
@@ -121,6 +125,7 @@ import { formatDateTime } from '@/utils/datetime'
 import type { Baseline, Deviation, Device, Group } from '@/types'
 
 const loading = ref(false)
+const loadError = ref(false)
 const submitting = ref(false)
 const exportLoading = ref(false)
 const baselines = ref<Baseline[]>([])
@@ -242,7 +247,9 @@ async function fetchBaselines() {
     })
     baselines.value = res.data.items
     baselinePagination.itemCount = res.data.total
+    loadError.value = false
   } catch {
+    loadError.value = true
     MessagePlugin.error('获取基线列表失败')
   } finally {
     loading.value = false

@@ -13,11 +13,8 @@
           <MenuUnfoldIcon v-else />
         </template>
       </t-button>
-      <t-breadcrumb>
-        <t-breadcrumb-item v-for="item in breadcrumbItems" :key="item.label">
-          {{ item.label }}
-        </t-breadcrumb-item>
-      </t-breadcrumb>
+      <span class="header-sep" aria-hidden="true"></span>
+      <span class="page-title">{{ pageTitle }}</span>
     </div>
 
     <div class="header-right">
@@ -192,30 +189,8 @@ const themeLabel = computed(() => {
   return found ? found.label : '跟随系统'
 })
 
-const routeLabelMap: Record<string, string> = {
-  Dashboard: '仪表盘',
-  DeviceList: '设备管理',
-  DeviceDetail: '设备详情',
-  FailedDevices: '失败设备',
-  AlertList: '告警管理',
-  BaselineManage: '基线管理',
-  AuditLogs: '审计日志',
-  Settings: '系统设置',
-}
-
-const breadcrumbItems = computed(() => {
-  const items: Array<{ label: string }> = []
-  const name = route.name as string
-
-  if (name === 'DeviceDetail') {
-    items.push({ label: '设备管理' })
-    items.push({ label: '设备详情' })
-  } else if (routeLabelMap[name]) {
-    items.push({ label: routeLabelMap[name] })
-  }
-
-  return items
-})
+// 顶部页面标题：随路由 meta.title 变化（导航仅由侧边栏承担，避免重复菜单）
+const pageTitle = computed(() => (route.meta.title as string) || 'NetConfigHub')
 
 async function handleMarkRead(alert: Alert) {
   if (await markRead(alert)) {
@@ -281,6 +256,21 @@ onUnmounted(() => {
 .header-right {
   display: flex;
   align-items: center;
+}
+
+.header-sep {
+  width: 1px;
+  height: 24px;
+  background: var(--shadcn-border);
+  margin: 0 10px;
+}
+.page-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--shadcn-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .admin-name {
