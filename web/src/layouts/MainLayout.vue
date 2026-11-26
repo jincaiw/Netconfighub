@@ -1,13 +1,12 @@
 <template>
   <t-layout class="app-layout">
     <t-aside class="desktop-sider" :style="{ width: appStore.sidebarCollapsed ? '64px' : '220px' }">
-      <div class="sider-logo" @click="goHome">
+      <div class="sider-logo" :class="{ 'sider-logo--collapsed': appStore.sidebarCollapsed }" @click="goHome">
         <span class="team-badge"><ActivityIcon size="18px" class="logo-icon" /></span>
         <span v-if="!appStore.sidebarCollapsed" class="team-meta">
           <span class="team-name">NetConfigHub</span>
           <span class="team-plan">设备配置管理平台</span>
         </span>
-        <span v-else class="logo-text-short">NCH</span>
         <ChevronDownIcon v-if="!appStore.sidebarCollapsed" class="team-switch" size="14px" />
       </div>
       <AppSidebar :collapsed="appStore.sidebarCollapsed" />
@@ -175,9 +174,10 @@ async function handleLogout() {
   flex-shrink: 0;
 }
 
-.logo-text-short {
-  font-size: 13px;
-  font-weight: 600;
+.sider-logo--collapsed {
+  justify-content: center;
+  padding: 0;
+  gap: 0;
 }
 
 .mobile-logo {

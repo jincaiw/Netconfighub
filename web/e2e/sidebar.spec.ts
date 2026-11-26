@@ -34,4 +34,17 @@ test.describe('侧边栏显示与分组', () => {
     await page.locator('.desktop-sider .app-menu .t-menu__item').filter({ hasText: '设备管理' }).click()
     await expect(page).toHaveURL(/\/devices$/)
   })
+
+  test('折叠后顶部 logo 仅显示居中徽标，无 NCH 文字/溢出', async ({ page }) => {
+    await login(page)
+    await page.getByRole('button', { name: '收起侧边栏' }).click()
+    await expect(page.locator('.desktop-sider')).toHaveCSS('width', '64px')
+    const logo = page.locator('.desktop-sider .sider-logo')
+    await expect(logo).toHaveClass(/sider-logo--collapsed/)
+    await expect(logo.locator('.logo-text-short')).toHaveCount(0)
+    await expect(logo.locator('.team-badge')).toBeVisible()
+    const ov = await logo.evaluate((el) => el.scrollWidth - el.clientWidth)
+    expect(ov).toBeLessThanOrEqual(1)
+  })
 })
+
