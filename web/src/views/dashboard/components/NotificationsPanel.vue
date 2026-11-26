@@ -30,7 +30,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { ref, watch } from 'vue'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { getAlerts, markAllAlertsAsRead } from '@/api/alert'
 import { formatDateTime } from '@/utils/datetime'
@@ -40,6 +40,9 @@ const alerts = ref<Alert[]>([])
 const loading = ref(false)
 const error = ref(false)
 const markingAll = ref(false)
+const loaded = ref(false)
+
+const props = defineProps<{ active?: boolean }>()
 
 async function fetchAlerts() {
   loading.value = true
@@ -67,7 +70,11 @@ async function markAll() {
   }
 }
 
-onMounted(fetchAlerts)
+watch(
+  () => props.active,
+  (v) => { if (v && !loaded.value) { loaded.value = true; fetchAlerts() } },
+  { immediate: true },
+)
 </script>
 
 <style scoped>

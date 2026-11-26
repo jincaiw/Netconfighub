@@ -33,7 +33,7 @@
           <ReportsPanel class="dashboard-section" :stats="stats" :tasks="allTasks" />
         </t-tab-panel>
         <t-tab-panel value="notifications" label="通知">
-          <NotificationsPanel class="dashboard-section" />
+          <NotificationsPanel class="dashboard-section" :active="activeTab === 'notifications'" />
         </t-tab-panel>
       </t-tabs>
     </template>
@@ -110,31 +110,40 @@ function exportReport() {
 async function fetchStats() {
   statsLoading.value = true
   failedParts.value = []
-  try {
-    const res = await getDevices({ page: 1, page_size: 1 })
-    totalDevices.value = res.data.total
-    clearStatError('设备总数')
-  } catch {
-    markStatError('设备总数')
-    MessagePlugin.error('获取设备统计失败')
-  }
-  try {
-    const BACKUPS_PAGE_SIZE = 100
-    const windowRes = await getBackupTasks({ page: 1, page_size: BACKUPS_PAGE_SIZE })
-    allTasks.value = windowRes.data.items
-    clearStatError('备份任务')
-  } catch {
-    markStatError('备份任务')
-    MessagePlugin.error('获取备份统计失败')
-  }
-  try {
-    const res = await getFailedDevices({ page: 1, page_size: 1 })
-    failedDeviceTotal.value = res.data.total
-    clearStatError('失败设备')
-  } catch {
-    markStatError('失败设备')
-    MessagePlugin.error('获取失败设备统计失败')
-  }
+  // 三项统计彼此独立：并行拉取，缩短首屏等待（较原串行 await 更快）。
+  await Promise.all([
+    (async () => {
+      try {
+        const res = await getDevices({ page: 1, page_size: 1 })
+        totalDevices.value = res.data.total
+        clearStatError('设备总数')
+      } catch {
+        markStatError('设备总数')
+        MessagePlugin.error('获取设备统计失败')
+      }
+    })(),
+    (async () => {
+      try {
+        const BACKUPS_PAGE_SIZE = 100
+        const windowRes = await getBackupTasks({ page: 1, page_size: BACKUPS_PAGE_SIZE })
+        allTasks.value = windowRes.data.items
+        clearStatError('备份任务')
+      } catch {
+        markStatError('备份任务')
+        MessagePlugin.error('获取备份统计失败')
+      }
+    })(),
+    (async () => {
+      try {
+        const res = await getFailedDevices({ page: 1, page_size: 1 })
+        failedDeviceTotal.value = res.data.total
+        clearStatError('失败设备')
+      } catch {
+        markStatError('失败设备')
+        MessagePlugin.error('获取失败设备统计失败')
+      }
+    })(),
+  ])
   statsLoading.value = false
 }
 
