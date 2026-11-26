@@ -1,4 +1,4 @@
-VERSION ?= v0.1.5
+VERSION ?= v0.1.6
 
 .PHONY: test lint build-web build-linux release-bundle docker-build verify e2e
 
