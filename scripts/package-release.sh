@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 set -eu
 
-VERSION="${VERSION:-v0.1.4}"
+VERSION="${VERSION:-v0.1.5}"
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 DIST="$ROOT/dist"
 STAGE="$DIST/netconfighub-$VERSION-linux-amd64"
