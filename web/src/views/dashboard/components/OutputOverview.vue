@@ -11,12 +11,11 @@
         </t-card>
       </t-col>
       <t-col :xs="12" :xl="3">
-        <t-card title="本月统计" class="ov-card ov-stats overview-card">
-          <template #actions>
-            <t-button size="small" variant="outline" @click="exportOverview">导出</t-button>
-          </template>
-          <div class="stat-block inner-card">
-            <div class="stat-label">本月备份次数</div>
+        <div class="stats-col overview-card">
+          <t-card title="本月备份次数" class="stat-card inner-card">
+            <template #actions>
+              <t-button size="small" variant="outline" @click="exportOverview">导出</t-button>
+            </template>
             <div class="stat-value">{{ inner.backupCount }}</div>
             <div class="stat-foot">
               较上期
@@ -24,10 +23,8 @@
               <span v-else>—</span>
             </div>
             <t-button variant="text" theme="primary" size="small" class="stat-link" @click="navigate('DeviceList')">查看设备</t-button>
-          </div>
-          <t-divider class="stat-divider" />
-          <div class="stat-block inner-card">
-            <div class="stat-label">本月成功率</div>
+          </t-card>
+          <t-card title="本月成功率" class="stat-card inner-card">
             <div class="stat-value">{{ inner.successRate }}%</div>
             <div class="stat-foot">
               较上期
@@ -35,8 +32,8 @@
               <span v-else>—</span>
             </div>
             <t-button variant="text" theme="primary" size="small" class="stat-link" @click="navigate('FailedDevices')">查看全部</t-button>
-          </div>
-        </t-card>
+          </t-card>
+        </div>
       </t-col>
     </t-row>
   </div>
@@ -85,17 +82,18 @@ function option(): echarts.EChartsCoreOption {
   const c = settingStore.chartColors
   return {
     color: c.seriesColors,
-    tooltip: { trigger: 'item', backgroundColor: c.containerColor, borderColor: c.borderColor, textStyle: { color: c.textColor } },
+    tooltip: { trigger: 'axis', backgroundColor: c.containerColor, borderColor: c.borderColor, textStyle: { color: c.textColor } },
     xAxis: {
       type: 'category', data: points.value.map((p) => p.date.slice(5)),
-      axisLabel: { color: c.placeholderColor }, axisLine: { lineStyle: { color: c.seriesColors[0], width: 1 } },
+      axisLabel: { color: c.placeholderColor }, axisLine: { lineStyle: { color: c.borderColor, width: 1 } },
     },
     yAxis: { type: 'value', axisLabel: { color: c.placeholderColor }, splitLine: { lineStyle: { color: c.borderColor } } },
-    grid: { top: '5%', left: '25px', right: 0, bottom: '12%' },
-    legend: { icon: 'rect', itemWidth: 12, itemHeight: 4, data: ['备份量', '失败'], textStyle: { fontSize: 12, color: c.placeholderColor }, left: 'center', bottom: 0 },
+    grid: { top: '5%', left: '25px', right: 8, bottom: '14%' },
+    legend: { icon: 'rect', itemWidth: 12, itemHeight: 4, data: ['成功', '失败'], textStyle: { fontSize: 12, color: c.placeholderColor }, left: 'center', bottom: 0 },
+    // 按天堆叠展示成功/失败数量：既避免“总量=全部失败”时两条完全相同的柱，也更直观。
     series: [
-      { name: '备份量', data: points.value.map((p) => p.total), type: 'bar' },
-      { name: '失败', data: points.value.map((p) => p.failed), type: 'bar' },
+      { name: '成功', type: 'bar', stack: 'total', barMaxWidth: 28, data: points.value.map((p) => p.success), itemStyle: { color: '#22c55e' } },
+      { name: '失败', type: 'bar', stack: 'total', barMaxWidth: 28, data: points.value.map((p) => p.failed), itemStyle: { color: '#ef4444' } },
     ],
   }
 }
@@ -131,12 +129,15 @@ onBeforeUnmount(() => { observer?.disconnect(); chart?.dispose() })
 .ov-card { flex: 1; height: auto; }
 .ov-card :deep(.t-card__header) { padding: 0 0 12px; }
 .ov-card :deep(.t-card__body) { padding-top: 8px; }
-.ov-stats :deep(.t-card__body) { display: flex; flex-direction: column; justify-content: space-between; }
-.stat-block { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
-.stat-label { color: var(--td-text-color-placeholder); font-size: 13px; }
+
+/* 右侧两枚等高统计卡，填满与图表卡相同高度 */
+.stats-col { display: flex; flex-direction: column; gap: 16px; width: 100%; }
+.stat-card { flex: 1 1 0; display: flex; flex-direction: column; }
+.stat-card :deep(.t-card__header) { padding: 12px 16px 0; }
+.stat-card :deep(.t-card__title) { font-size: 13px; font-weight: 500; color: var(--td-text-color-placeholder); }
+.stat-card :deep(.t-card__body) { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 8px 16px 16px; }
 .stat-value { font-size: 28px; font-weight: 600; color: var(--td-text-color-primary); line-height: 1.2; }
 .stat-foot { display: flex; align-items: center; color: var(--td-text-color-placeholder); font-size: 12px; }
 .stat-foot .trend-tag { margin-left: 6px; }
-.stat-link { align-self: flex-start; padding-left: 0; margin-top: 2px; }
-.stat-divider { margin: 8px 0; }
+.stat-link { align-self: flex-start; padding-left: 0; margin-top: 2px; color: var(--td-brand-color); font-weight: 500; }
 </style>
