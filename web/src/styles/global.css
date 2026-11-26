@@ -141,6 +141,23 @@ a {
   }
 }
 
+/* 卡片头部按内容自适应换行（适用于平板/中等宽度）：
+   标题保持单行不竖排；操作工具栏在空间不足时整体换行到下一行并按需折行，
+   避免标题被挤压成竖排、搜索/筛选/按钮溢出裁切。 */
+.main-content .t-card__header {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.main-content .t-card__title {
+  white-space: nowrap;
+}
+.main-content .t-card__actions {
+  margin-left: auto;
+}
+.main-content .t-card__actions .t-space {
+  flex-wrap: wrap;
+}
+
 /* 响应式：窄屏下卡片头部（标题 + 操作工具栏）换行堆叠，
    避免标题被压缩成竖排、操作栏（搜索/筛选/按钮）溢出裁切。 */
 @media (max-width: 768px) {

@@ -43,3 +43,36 @@ test.describe('响应式（移动端 390px）', () => {
     expect(m.cw).toBeLessThanOrEqual(m.vw)
   })
 })
+
+// 回归：平板/中等宽度（1024px）设备列表顶部筛选工具栏——标题不竖排、工具栏不溢出裁切。
+test.describe('响应式（中等宽度 1024px）', () => {
+  test.use({ viewport: { width: 1024, height: 900 } })
+
+  test('设备列表卡片标题不竖排且筛选工具栏完整可见、无横向溢出', async ({ page }) => {
+    await login(page)
+    await page.goto('/devices')
+    await page.waitForTimeout(700)
+    const m = await page.evaluate(() => {
+      const title = document.querySelector('.t-card__title') as HTMLElement | null
+      const search = document.querySelector('.t-card__actions .t-input__wrap') as HTMLElement | null
+      const createBtn = [...document.querySelectorAll('.t-card__actions .t-button')].find((b) =>
+        (b.textContent || '').includes('添加设备'),
+      ) as HTMLElement | undefined
+      const titleRect = title ? title.getBoundingClientRect() : null
+      const btnRect = createBtn ? createBtn.getBoundingClientRect() : null
+      return {
+        titleH: titleRect ? Math.round(titleRect.height) : 0,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        searchVisible: !!search && search.getBoundingClientRect().width > 80,
+        createInViewport: !!btnRect && btnRect.right <= window.innerWidth + 1 && btnRect.width > 0,
+      }
+    })
+    // 标题单行（竖排会远大于约 24px）
+    expect(m.titleH, '标题高度').toBeGreaterThan(0)
+    expect(m.titleH, '标题不竖排').toBeLessThan(40)
+    // 无横向溢出；搜索框可见；主按钮完整在视口内（未被裁切）
+    expect(m.overflow, '横向溢出').toBeLessThanOrEqual(1)
+    expect(m.searchVisible, '搜索框可见').toBeTruthy()
+    expect(m.createInViewport, '添加设备按钮完整可见').toBeTruthy()
+  })
+})
