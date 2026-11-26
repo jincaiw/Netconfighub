@@ -22,6 +22,7 @@
         <t-dropdown
           trigger="click"
           placement="bottom-right"
+          :min-column-width="360"
           :popup-props="alertPopupProps"
           :hide-after-item-click="false"
         >
