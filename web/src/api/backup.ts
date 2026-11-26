@@ -13,6 +13,11 @@ export function getBackupTasks(params?: Record<string, any>) {
   return get<PaginatedResponse<BackupTask>>('/backups', params)
 }
 
+/** 完整区间的备份历史（用于仪表盘按范围聚合，避免仅取最新 100 条样本）。 */
+export function getBackupHistory(params?: { days?: number; limit?: number }) {
+  return get<BackupTask[]>('/backups/history', params)
+}
+
 export function getBackupDetail(id: number) {
   return get<BackupTask>(`/backups/${id}`)
 }

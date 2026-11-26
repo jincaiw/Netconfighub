@@ -54,7 +54,7 @@ func TestSubmitDeviceAcceptsPullDevice(t *testing.T) {
 	sched := &Scheduler{
 		deviceRepo: deviceRepo,
 		stopCh:     make(chan struct{}),
-		taskQueue:  make(chan uint, 4),
+		taskQueue:  make(chan backupJob, 4),
 	}
 	if err := sched.SubmitDevice(device.ID); err != nil {
 		t.Fatalf("pull 设备应可提交: %v", err)

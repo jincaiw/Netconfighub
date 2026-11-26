@@ -339,3 +339,78 @@ func TestSFTPUploadRepositoryListAndRetry(t *testing.T) {
 		t.Errorf("retry_count = %d, want 2", reloaded.RetryCount)
 	}
 }
+
+func TestPruneHistoryRetention(t *testing.T) {
+	db := setupRepoTestDB(t)
+	repo := NewBackupTaskRepository(db)
+	devRepo := NewDeviceRepository(db)
+	ctx := context.Background()
+
+	dev := &model.Device{
+		Name: "d1", IP: "192.0.2.11", Vendor: model.VendorCisco,
+		Protocol: model.ConnProtocolSSH, Port: 22, Username: "admin", Enabled: true,
+	}
+	if err := devRepo.Create(ctx, dev); err != nil {
+		t.Fatalf("创建设备失败: %v", err)
+	}
+	now := time.Now()
+	mk := func(status model.BackupStatus, ageDays int) {
+		task := &model.BackupTask{DeviceID: dev.ID, Status: status, CreatedAt: now.AddDate(0, 0, -ageDays)}
+		if err := repo.Create(ctx, task); err != nil {
+			t.Fatalf("创建任务失败: %v", err)
+		}
+	}
+	// 非成功：41/40 天前 + 1 天前（保留 1/40，删除 41）
+	mk(model.BackupStatusFailed, 41)
+	mk(model.BackupStatusFailed, 40)
+	mk(model.BackupStatusFailed, 1)
+	// 3 条 40/39/38 天前的成功，仅保留最近 2 条成功（38、39），删除最旧的 40
+	mk(model.BackupStatusSuccess, 40)
+	mk(model.BackupStatusSuccess, 39)
+	mk(model.BackupStatusSuccess, 38)
+
+	// 每设备保留最近 2 条成功 + 2 条其它：成功保留 38/39 天，其它保留 1/40 天。
+	deleted, err := repo.PruneHistory(ctx, 30, 2, 2)
+	if err != nil {
+		t.Fatalf("PruneHistory 失败: %v", err)
+	}
+	if deleted != 2 {
+		t.Fatalf("应删除 2 条（最旧成功 40 天 + 最旧失败 41 天），实际 %d", deleted)
+	}
+	_, total, err := repo.List(ctx, nil, nil, 0, 1000)
+	if err != nil {
+		t.Fatalf("List 失败: %v", err)
+	}
+	if total != 4 {
+		t.Fatalf("应保留 4 条（每设备 2 成功 + 2 其它），实际 %d", total)
+	}
+}
+
+func TestListSinceReturnsRangeAndDeviceName(t *testing.T) {
+	db := setupRepoTestDB(t)
+	repo := NewBackupTaskRepository(db)
+	devRepo := NewDeviceRepository(db)
+	ctx := context.Background()
+
+	dev := &model.Device{
+		Name: "range-dev", IP: "192.0.2.12", Vendor: model.VendorCisco,
+		Protocol: model.ConnProtocolSSH, Port: 22, Username: "admin", Enabled: true,
+	}
+	if err := devRepo.Create(ctx, dev); err != nil {
+		t.Fatalf("创建设备失败: %v", err)
+	}
+	now := time.Now()
+	repo.Create(ctx, &model.BackupTask{DeviceID: dev.ID, Status: model.BackupStatusSuccess, CreatedAt: now.AddDate(0, 0, -1)})
+	repo.Create(ctx, &model.BackupTask{DeviceID: dev.ID, Status: model.BackupStatusSuccess, CreatedAt: now.AddDate(0, 0, -40)})
+
+	tasks, err := repo.ListSince(ctx, now.AddDate(0, 0, -30), 100)
+	if err != nil {
+		t.Fatalf("ListSince 失败: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("应只返回近 30 天 1 条，实际 %d", len(tasks))
+	}
+	if tasks[0].DeviceName != "range-dev" {
+		t.Fatalf("DeviceName 未填充，实际 %q", tasks[0].DeviceName)
+	}
+}

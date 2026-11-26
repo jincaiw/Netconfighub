@@ -55,6 +55,11 @@ type BackupTaskRepository interface {
 	Update(ctx context.Context, task *model.BackupTask) error
 	UpdateStatus(ctx context.Context, id uint, status model.BackupStatus, failureReason string, errorType string) error
 	FindByStatus(ctx context.Context, status model.BackupStatus) ([]model.BackupTask, error)
+	FindRetryableTasks(ctx context.Context, limit int) ([]model.BackupTask, error)
+	ClaimRetryingTask(ctx context.Context, id uint) (bool, error)
+	ListSince(ctx context.Context, since time.Time, limit int) ([]model.BackupTask, error)
+	PruneHistory(ctx context.Context, keepDays int, keepSuccessPerDevice int, keepFailedPerDevice int) (int64, error)
+	FinalizeStaleTasks(ctx context.Context) (int64, error)
 }
 
 type BaselineRepository interface {

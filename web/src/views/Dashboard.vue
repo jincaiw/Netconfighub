@@ -45,7 +45,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { MessagePlugin } from 'tdesign-vue-next'
 import { getDevices } from '@/api/device'
-import { getBackupTasks, getFailedDevices } from '@/api/backup'
+import { getBackupHistory, getFailedDevices } from '@/api/backup'
 import type { BackupTask } from '@/types'
 import { useAlertSummary } from '@/composables/useAlertSummary'
 import TopPanel from './dashboard/components/TopPanel.vue'
@@ -124,9 +124,9 @@ async function fetchStats() {
     })(),
     (async () => {
       try {
-        const BACKUPS_PAGE_SIZE = 100
-        const windowRes = await getBackupTasks({ page: 1, page_size: BACKUPS_PAGE_SIZE })
-        allTasks.value = windowRes.data.items
+        // 取最近 30 天完整历史（保留窗口内完整），使趋势/状态/排名基于真实数据而非 100 条样本。
+        const historyRes = await getBackupHistory({ days: 30, limit: 10000 })
+        allTasks.value = historyRes.data
         clearStatError('备份任务')
       } catch {
         markStatError('备份任务')

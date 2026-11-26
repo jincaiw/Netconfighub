@@ -5,7 +5,7 @@
         <div class="rs-item"><span class="rs-label">设备总数</span><b class="rs-value">{{ stats.totalDevices }}</b></div>
         <div class="rs-item"><span class="rs-label">备份成功率</span><b class="rs-value">{{ stats.successRate }}%</b></div>
         <div class="rs-item"><span class="rs-label">失败设备数</span><b class="rs-value">{{ stats.failedDevices }}</b></div>
-        <div class="rs-item"><span class="rs-label">近 100 条备份任务</span><b class="rs-value">{{ tasks.length }}</b></div>
+        <div class="rs-item"><span class="rs-label">近 30 天备份任务</span><b class="rs-value">{{ tasks.length }}</b></div>
       </div>
       <t-space class="report-actions" :size="12">
         <t-button variant="outline" :loading="exportingDevices" @click="exportDevices">导出设备清单（CSV）</t-button>

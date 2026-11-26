@@ -28,6 +28,7 @@ type BackupTask struct {
 	ID            uint         `gorm:"primarykey" json:"id"`
 	DeviceID      uint         `gorm:"index;not null" json:"device_id"`
 	Device        Device       `gorm:"foreignKey:DeviceID" json:"device,omitempty"`
+	DeviceName    string       `gorm:"-" json:"device_name,omitempty"`
 	Status        BackupStatus `gorm:"size:32;not null;default:pending" json:"status"`
 	Source        string       `gorm:"size:16;default:pull" json:"source"`
 	StartedAt     *time.Time   `json:"started_at"`

@@ -141,6 +141,7 @@ func (r *Router) Setup(engine *gin.Engine) {
 			backups := authenticated.Group("/backups")
 			{
 				backups.GET("", r.listBackups)
+				backups.GET("/history", r.listHistory)
 				backups.GET("/:id", r.getBackup)
 				backups.GET("/:id/config", r.getBackupConfig)
 			}

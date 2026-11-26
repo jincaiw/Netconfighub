@@ -29,6 +29,13 @@ type RetryConfig struct {
 	RetryDelay time.Duration `yaml:"retry_delay"`
 }
 
+// backupJob is a queued unit of work. taskID == 0 means "create a new task";
+// taskID > 0 means "retry this existing task in place" (no new row).
+type backupJob struct {
+	deviceID uint
+	taskID   uint
+}
+
 type Scheduler struct {
 	cron           *cron.Cron
 	cfg            *config.SchedulerConfig
@@ -45,7 +52,7 @@ type Scheduler struct {
 	hookService    service.HookService
 	ingest         service.ConfigIngestService
 	workerPoolSize int
-	taskQueue      chan uint
+	taskQueue      chan backupJob
 	stopCh         chan struct{}
 	stopOnce       sync.Once
 	wg             sync.WaitGroup
@@ -114,7 +121,7 @@ func NewScheduler(deps SchedulerDeps) *Scheduler {
 		hookService:    deps.HookService,
 		ingest:         deps.Ingest,
 		workerPoolSize: cfg.WorkerPoolSize,
-		taskQueue:      make(chan uint, cfg.WorkerPoolSize*2),
+		taskQueue:      make(chan backupJob, cfg.WorkerPoolSize*2),
 		stopCh:         make(chan struct{}),
 		encryptionKey:  deps.EncryptionKey,
 		maxRetries:     maxRetries,
@@ -126,6 +133,29 @@ func NewScheduler(deps SchedulerDeps) *Scheduler {
 func (s *Scheduler) Start() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
+
+	if s.backupTaskRepo != nil {
+		// 启动时先把上次运行遗留的 pending/running/retrying 归并为 failed，
+		// 避免其作为“进行中”误导显示，或被重试循环再次处理。
+		if n, err := s.backupTaskRepo.FinalizeStaleTasks(context.Background()); err != nil {
+			log.Printf("归并遗留未完成任务失败: %v", err)
+		} else if n > 0 {
+			log.Printf("已归并遗留未完成任务 %d 条为 failed", n)
+		}
+		// 启动时同步清理一次（在开始服务前完成，避免高峰期大表写锁阻塞请求）。
+		if deleted, err := s.backupTaskRepo.PruneHistory(context.Background(), s.cfg.HistoryRetentionDays, s.cfg.HistoryKeepSuccessPerDevice, s.cfg.HistoryKeepFailedPerDevice); err != nil {
+			log.Printf("启动清理备份历史失败: %v", err)
+		} else if deleted > 0 {
+			log.Printf("已清理备份历史 %d 条（每设备保留最近 %d 条成功 + %d 条其它）", deleted, s.cfg.HistoryKeepSuccessPerDevice, s.cfg.HistoryKeepFailedPerDevice)
+		}
+		if _, err := s.cron.AddFunc("@daily", func() {
+			if _, err := s.backupTaskRepo.PruneHistory(context.Background(), s.cfg.HistoryRetentionDays, s.cfg.HistoryKeepSuccessPerDevice, s.cfg.HistoryKeepFailedPerDevice); err != nil {
+				log.Printf("每日清理备份历史失败: %v", err)
+			}
+		}); err != nil {
+			log.Printf("注册每日清理任务失败: %v", err)
+		}
+	}
 
 	for i := 0; i < s.workerPoolSize; i++ {
 		s.wg.Add(1)
@@ -179,7 +209,7 @@ func (s *Scheduler) SubmitDevice(deviceID uint) error {
 	select {
 	case <-s.stopCh:
 		return fmt.Errorf("调度器已停止")
-	case s.taskQueue <- deviceID:
+	case s.taskQueue <- backupJob{deviceID: deviceID}:
 		return nil
 	default:
 		return fmt.Errorf("备份队列已满，请稍后重试")
@@ -209,7 +239,7 @@ func (s *Scheduler) SubmitGroup(groupID uint) error {
 		select {
 		case <-s.stopCh:
 			return fmt.Errorf("调度器已停止")
-		case s.taskQueue <- device.ID:
+		case s.taskQueue <- backupJob{deviceID: device.ID}:
 		default:
 			log.Printf("队列已满，跳过设备 %d", device.ID)
 		}
@@ -225,11 +255,15 @@ func (s *Scheduler) worker(ctx context.Context, id int) {
 			return
 		case <-ctx.Done():
 			return
-		case deviceID, ok := <-s.taskQueue:
+		case job, ok := <-s.taskQueue:
 			if !ok {
 				return
 			}
-			s.executeBackup(ctx, deviceID)
+			if job.taskID > 0 {
+				s.retryExistingTask(ctx, job)
+			} else {
+				s.executeBackup(ctx, job.deviceID)
+			}
 		}
 	}
 }
@@ -284,6 +318,10 @@ func (s *Scheduler) executeBackup(ctx context.Context, deviceID uint) {
 		return
 	}
 
+	s.runTask(ctx, task, device)
+}
+
+func (s *Scheduler) runTask(ctx context.Context, task *model.BackupTask, device *model.Device) {
 	if s.collector == nil {
 		s.handleBackupFailure(ctx, task, device, fmt.Errorf("采集器未初始化"))
 		return
@@ -317,6 +355,61 @@ func (s *Scheduler) executeBackup(ctx context.Context, deviceID uint) {
 			s.handleBackupSuccess(ctx, task, device, result.content)
 		}
 	}
+}
+
+// retryExistingTask re-runs an existing retrying task in place. It first claims
+// the task via an atomic conditional update so a task is never executed
+// concurrently, and it never creates a new row (bounded retries).
+func (s *Scheduler) retryExistingTask(ctx context.Context, job backupJob) {
+	if s.backupTaskRepo == nil {
+		return
+	}
+	claimed, err := s.backupTaskRepo.ClaimRetryingTask(ctx, job.taskID)
+	if err != nil {
+		log.Printf("认领重试任务失败 [taskID=%d]: %v", job.taskID, err)
+		return
+	}
+	if !claimed {
+		return
+	}
+	task, err := s.backupTaskRepo.FindByID(ctx, job.taskID)
+	if err != nil {
+		log.Printf("查询重试任务失败 [taskID=%d]: %v", job.taskID, err)
+		return
+	}
+	if s.deviceRepo == nil {
+		return
+	}
+	device, err := s.deviceRepo.FindByID(ctx, task.DeviceID)
+	if err != nil || device == nil {
+		now := time.Now()
+		task.Status = model.BackupStatusFailed
+		task.ErrorType = "device_not_found"
+		task.FailureReason = "设备不存在"
+		task.FinishedAt = &now
+		_ = s.backupTaskRepo.Update(ctx, task)
+		return
+	}
+	if !device.Enabled {
+		now := time.Now()
+		task.Status = model.BackupStatusSkipped
+		task.ErrorType = "device_disabled"
+		task.FailureReason = "设备已禁用"
+		task.FinishedAt = &now
+		_ = s.backupTaskRepo.Update(ctx, task)
+		return
+	}
+	if !device.IsPullable() {
+		now := time.Now()
+		task.Status = model.BackupStatusFailed
+		task.ErrorType = "device_not_pullable"
+		task.FailureReason = "设备使用 SFTP 上传模式，不支持平台拉取"
+		task.FinishedAt = &now
+		_ = s.backupTaskRepo.Update(ctx, task)
+		return
+	}
+	s.decryptDeviceCredentials(device)
+	s.runTask(ctx, task, device)
 }
 
 func (s *Scheduler) handleBackupSuccess(ctx context.Context, task *model.BackupTask, device *model.Device, configContent string) {
@@ -608,29 +701,22 @@ func (s *Scheduler) processRetryingTasks(ctx context.Context) {
 			if s.backupTaskRepo == nil {
 				continue
 			}
-			tasks, err := s.backupTaskRepo.FindByStatus(ctx, model.BackupStatusRetrying)
+			// Only retrying tasks that still have retries left, bounded, so the
+			// loop never loads unbounded history into memory.
+			tasks, err := s.backupTaskRepo.FindRetryableTasks(ctx, 500)
 			if err != nil {
 				log.Printf("查询重试任务失败: %v", err)
 				continue
 			}
 			for _, task := range tasks {
-				// Re-check the device: a task created before the device switched
-				// to sftp_push must not be retried by the pull pipeline.
-				if s.deviceRepo != nil {
-					device, err := s.deviceRepo.FindByID(ctx, task.DeviceID)
-					if err != nil || device == nil || !device.IsPullable() {
-						continue
-					}
-				}
 				select {
 				case <-s.stopCh:
 					return
 				case <-ctx.Done():
 					return
-				case s.taskQueue <- task.DeviceID:
-					log.Printf("重新提交重试任务 [deviceID=%d, retryCount=%d]", task.DeviceID, task.RetryCount)
+				case s.taskQueue <- backupJob{deviceID: task.DeviceID, taskID: task.ID}:
 				default:
-					log.Printf("队列已满，跳过重试任务 [deviceID=%d]", task.DeviceID)
+					// 队列已满，下一轮再试
 				}
 			}
 		}
@@ -683,7 +769,7 @@ func (s *Scheduler) scheduleAllDevices(ctx context.Context) {
 			return
 		case <-ctx.Done():
 			return
-		case s.taskQueue <- device.ID:
+		case s.taskQueue <- backupJob{deviceID: device.ID}:
 		default:
 		}
 	}

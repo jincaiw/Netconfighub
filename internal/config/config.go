@@ -75,6 +75,12 @@ type SchedulerConfig struct {
 	MaxRetries      int    `yaml:"max_retries"`
 	RetryDelay      string `yaml:"retry_delay"`
 	TaskTimeout     string `yaml:"task_timeout"`
+	// HistoryRetentionDays caps how many days of backup history are kept;
+	// HistoryKeepSuccessPerDevice keeps each device's most recent successful
+	// tasks even if older than the retention window (0 disables auto-prune).
+	HistoryRetentionDays        int `yaml:"history_retention_days"`
+	HistoryKeepSuccessPerDevice int `yaml:"history_keep_success_per_device"`
+	HistoryKeepFailedPerDevice  int `yaml:"history_keep_failed_per_device"`
 }
 
 type LogConfig struct {
@@ -219,6 +225,15 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.Scheduler.TaskTimeout == "" {
 		cfg.Scheduler.TaskTimeout = "5m"
+	}
+	if cfg.Scheduler.HistoryRetentionDays == 0 {
+		cfg.Scheduler.HistoryRetentionDays = 30
+	}
+	if cfg.Scheduler.HistoryKeepSuccessPerDevice == 0 {
+		cfg.Scheduler.HistoryKeepSuccessPerDevice = 200
+	}
+	if cfg.Scheduler.HistoryKeepFailedPerDevice == 0 {
+		cfg.Scheduler.HistoryKeepFailedPerDevice = 50
 	}
 	if cfg.Log.Level == "" {
 		cfg.Log.Level = "info"

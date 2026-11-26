@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/netconfighub/netconfighub/internal/apperr"
 	"github.com/netconfighub/netconfighub/internal/gitstore"
@@ -73,6 +74,10 @@ func (s *backupServiceImpl) GetByID(ctx context.Context, id uint) (*model.Backup
 
 func (s *backupServiceImpl) List(ctx context.Context, deviceID *uint, status *model.BackupStatus, offset, limit int) ([]model.BackupTask, int64, error) {
 	return s.backupTaskRepo.List(ctx, deviceID, status, offset, limit)
+}
+
+func (s *backupServiceImpl) ListSince(ctx context.Context, since time.Time, limit int) ([]model.BackupTask, error) {
+	return s.backupTaskRepo.ListSince(ctx, since, limit)
 }
 
 func (s *backupServiceImpl) GetConfig(ctx context.Context, taskID uint) (string, error) {

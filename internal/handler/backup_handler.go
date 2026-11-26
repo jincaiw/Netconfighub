@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/netconfighub/netconfighub/internal/model"
@@ -70,4 +71,24 @@ func (r *Router) getBackupConfig(c *gin.Context) {
 		return
 	}
 	Success(c, gin.H{"content": content})
+}
+
+// listHistory returns a bounded, complete window of backup tasks (newest first)
+// so the dashboard can aggregate over the whole range instead of a tiny sample.
+func (r *Router) listHistory(c *gin.Context) {
+	days, _ := strconv.Atoi(c.DefaultQuery("days", "30"))
+	if days < 1 || days > 365 {
+		days = 30
+	}
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10000"))
+	if limit < 1 || limit > 20000 {
+		limit = 10000
+	}
+	since := time.Now().AddDate(0, 0, -days)
+	tasks, err := r.backupService.ListSince(c.Request.Context(), since, limit)
+	if err != nil {
+		DatabaseError(c, "查询备份历史失败")
+		return
+	}
+	Success(c, tasks)
 }

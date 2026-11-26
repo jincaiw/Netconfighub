@@ -64,7 +64,7 @@ func TestSubmitDeviceQueueFull(t *testing.T) {
 	s := NewScheduler(SchedulerDeps{Cfg: cfg, EncryptionKey: "test-encryption-key-32bytes!!"})
 
 	for i := 0; i < cap(s.taskQueue); i++ {
-		s.taskQueue <- uint(i)
+		s.taskQueue <- backupJob{deviceID: uint(i)}
 	}
 
 	err := s.SubmitDevice(999)

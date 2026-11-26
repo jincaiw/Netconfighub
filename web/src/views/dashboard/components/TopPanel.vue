@@ -50,7 +50,7 @@ const cards = computed<
   const s = props.stats
   return [
     { label: '设备总数', value: s.totalDevices, compareLabel: '近7天', icon: ServerIcon, route: 'DeviceList' },
-    { label: '备份成功率', value: s.successRate, suffix: '%', compareLabel: '近7天', icon: CheckCircleIcon, route: 'DeviceList' },
+    { label: '备份成功率', value: s.successRate, suffix: '%', compareLabel: '近30天', icon: CheckCircleIcon, route: 'DeviceList' },
     { label: '失败设备数', value: s.failedDevices, compareLabel: '近7天', icon: ErrorCircleIcon, route: 'FailedDevices' },
     { label: '未读告警', value: s.unreadAlerts, compareLabel: '当前', icon: NotificationIcon, route: 'AlertList' },
   ]

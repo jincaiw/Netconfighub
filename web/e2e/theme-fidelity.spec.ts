@@ -44,15 +44,12 @@ test.describe('TDesign dashboard/base 主题结构', () => {
     await expect(page.getByText('任务量排名')).toBeVisible()
   })
 
-  test('首页备份取数使用服务端允许的 page_size（<=100），不再请求 total 被静默降级', async ({ page }) => {
-    const backupReq = page.waitForRequest(
-      (req) => req.url().includes('/api/v1/backups?') && /[?&]page=1/.test(req.url()),
-    )
+  test('首页备份取数使用完整历史区间（/backups/history）而非 100 条样本', async ({ page }) => {
+    const backupReq = page.waitForRequest((req) => req.url().includes('/api/v1/backups/history'))
     await login(page)
     const req = await backupReq
     const url = new URL(req.url())
-    const size = Number(url.searchParams.get('page_size'))
-    expect(size).toBeGreaterThan(10)
-    expect(size).toBeLessThanOrEqual(100)
+    // 取完整保留窗口（近 30 天），不再用 page_size<=100 的抽样
+    expect(Number(url.searchParams.get('days'))).toBeGreaterThanOrEqual(7)
   })
 })
