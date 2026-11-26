@@ -1,8 +1,8 @@
 <template>
-  <t-card :bordered="false" class="overview-wrap">
-    <t-row>
+  <div class="overview-wrap">
+    <t-row :gutter="16">
       <t-col :xs="12" :xl="9">
-        <t-card :bordered="false" title="备份量趋势" subtitle="近7天" class="dashboard-overview-card overview-card overview-panel">
+        <t-card title="备份量趋势" subtitle="近7天" class="ov-card overview-card">
           <template #actions>
             <t-date-range-picker theme="primary" mode="date" :default-value="range" @change="onRangeChange" />
           </template>
@@ -11,42 +11,35 @@
         </t-card>
       </t-col>
       <t-col :xs="12" :xl="3">
-        <t-card :bordered="false" class="dashboard-overview-card overview-card export-panel">
+        <t-card title="本月统计" class="ov-card ov-stats overview-card">
           <template #actions>
-            <t-button>导出</t-button>
+            <t-button size="small" variant="outline" @click="exportOverview">导出</t-button>
           </template>
-          <t-row>
-            <t-col :xs="6" :xl="12">
-              <t-card :bordered="false" subtitle="本月备份次数" class="inner-card">
-                <div class="inner-card__content">
-                  <div class="inner-card__content-title">{{ inner.backupCount }}</div>
-                  <div class="inner-card__content-footer">
-                    较上期
-                    <trend v-if="inner.countDelta" class="trend-tag" :type="inner.countDelta.direction" :describe="`${inner.countDelta.percent}%`" />
-                    <span v-else>—</span>
-                  </div>
-                  <t-button variant="text" theme="primary" size="small" @click="navigate('DeviceList')">查看设备</t-button>
-                </div>
-              </t-card>
-            </t-col>
-            <t-col :xs="6" :xl="12">
-              <t-card :bordered="false" subtitle="本月成功率" class="inner-card">
-                <div class="inner-card__content">
-                  <div class="inner-card__content-title">{{ inner.successRate }}%</div>
-                  <div class="inner-card__content-footer">
-                    较上期
-                    <trend v-if="inner.rateDelta" class="trend-tag" :type="inner.rateDelta.direction" :describe="`${inner.rateDelta.percent}%`" />
-                    <span v-else>—</span>
-                  </div>
-                  <t-button variant="text" theme="primary" size="small" @click="navigate('FailedDevices')">查看全部</t-button>
-                </div>
-              </t-card>
-            </t-col>
-          </t-row>
+          <div class="stat-block inner-card">
+            <div class="stat-label">本月备份次数</div>
+            <div class="stat-value">{{ inner.backupCount }}</div>
+            <div class="stat-foot">
+              较上期
+              <trend v-if="inner.countDelta" class="trend-tag" :type="inner.countDelta.direction" :describe="`${inner.countDelta.percent}%`" />
+              <span v-else>—</span>
+            </div>
+            <t-button variant="text" theme="primary" size="small" class="stat-link" @click="navigate('DeviceList')">查看设备</t-button>
+          </div>
+          <t-divider class="stat-divider" />
+          <div class="stat-block inner-card">
+            <div class="stat-label">本月成功率</div>
+            <div class="stat-value">{{ inner.successRate }}%</div>
+            <div class="stat-foot">
+              较上期
+              <trend v-if="inner.rateDelta" class="trend-tag" :type="inner.rateDelta.direction" :describe="`${inner.rateDelta.percent}%`" />
+              <span v-else>—</span>
+            </div>
+            <t-button variant="text" theme="primary" size="small" class="stat-link" @click="navigate('FailedDevices')">查看全部</t-button>
+          </div>
         </t-card>
       </t-col>
     </t-row>
-  </t-card>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -55,8 +48,10 @@ import { BarChart } from 'echarts/charts'
 import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
 import * as echarts from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
+import { MessagePlugin } from 'tdesign-vue-next'
 import Trend from '@/components/trend/index.vue'
 import { useSettingStore } from '@/stores/setting'
+import { downloadCsv } from '@/utils/csv'
 import type { BackupTask } from '@/types'
 import { aggregateByDay, buildInnerCards } from '../index'
 
@@ -75,6 +70,16 @@ const range = ref<[string, string]>([iso(new Date(Date.now() - 6 * 86400000)), i
 const inner = computed(() => buildInnerCards(props.tasks))
 const points = computed(() => aggregateByDay(props.tasks, rangeDays))
 const hasData = computed(() => points.value.some((p) => p.total > 0))
+
+function exportOverview(): void {
+  downloadCsv(`备份概览-${new Date().toISOString().slice(0, 10)}.csv`, [
+    ['指标', '数值'],
+    ['本月备份次数', inner.value.backupCount],
+    ['本月成功率(%)', inner.value.successRate],
+    ['生成时间', new Date().toLocaleString()],
+  ])
+  MessagePlugin.success('已导出备份概览')
+}
 
 function option(): echarts.EChartsCoreOption {
   const c = settingStore.chartColors
@@ -121,16 +126,17 @@ onBeforeUnmount(() => { observer?.disconnect(); chart?.dispose() })
 
 <style scoped>
 .overview-wrap { width: 100%; }
-.overview-wrap :deep(.t-card__body) { padding: var(--td-comp-paddingTB-xxl) var(--td-comp-paddingLR-xxl); }
-.dashboard-overview-card :deep(.t-card__header) { padding: 0; }
-.dashboard-overview-card :deep(.t-card__title) { font: var(--td-font-title-large); font-weight: 400; }
-.dashboard-overview-card :deep(.t-card__body) { margin-top: var(--td-comp-margin-xxl); padding: 0; }
-.dashboard-overview-card.overview-panel { border-right: none; }
-.dashboard-overview-card.export-panel { border-left: none; margin-left: calc(var(--td-comp-margin-xxxl) + var(--td-comp-margin-xxxl)); }
-.inner-card { margin-top: var(--td-comp-margin-s); margin-bottom: var(--td-comp-margin-xxxxl); }
-.inner-card :deep(.t-card__header) { padding-bottom: 0; }
-.inner-card :deep(.t-card__body) { margin-top: var(--td-comp-margin-s); }
-.inner-card__content-title { font-size: var(--td-font-size-headline-medium); line-height: var(--td-line-height-headline-medium); }
-.inner-card__content-footer { display: flex; align-items: center; color: var(--td-text-color-placeholder); margin-top: var(--td-comp-margin-xxl); }
-.inner-card__content-footer .trend-tag { margin-left: var(--td-comp-margin-s); }
+.overview-wrap :deep(.t-row) { align-items: stretch; }
+.overview-wrap :deep(.t-col) { display: flex; }
+.ov-card { flex: 1; height: auto; }
+.ov-card :deep(.t-card__header) { padding: 0 0 12px; }
+.ov-card :deep(.t-card__body) { padding-top: 8px; }
+.ov-stats :deep(.t-card__body) { display: flex; flex-direction: column; justify-content: space-between; }
+.stat-block { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
+.stat-label { color: var(--td-text-color-placeholder); font-size: 13px; }
+.stat-value { font-size: 28px; font-weight: 600; color: var(--td-text-color-primary); line-height: 1.2; }
+.stat-foot { display: flex; align-items: center; color: var(--td-text-color-placeholder); font-size: 12px; }
+.stat-foot .trend-tag { margin-left: 6px; }
+.stat-link { align-self: flex-start; padding-left: 0; margin-top: 2px; }
+.stat-divider { margin: 8px 0; }
 </style>

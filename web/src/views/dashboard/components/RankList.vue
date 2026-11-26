@@ -3,7 +3,7 @@
     <t-col :xs="12" :xl="6">
       <t-card title="失败次数排名" class="dashboard-rank-card rank-card" :bordered="false">
         <template #actions>
-          <t-radio-group v-model="period" variant="default-filled">
+          <t-radio-group v-model="failedPeriod" variant="default-filled">
             <t-radio-button value="week">本周</t-radio-button>
             <t-radio-button value="month">本月</t-radio-button>
           </t-radio-group>
@@ -26,7 +26,7 @@
     <t-col :xs="12" :xl="6">
       <t-card title="任务量排名" class="dashboard-rank-card rank-card" :bordered="false">
         <template #actions>
-          <t-radio-group v-model="period" variant="default-filled">
+          <t-radio-group v-model="countPeriod" variant="default-filled">
             <t-radio-button value="week">本周</t-radio-button>
             <t-radio-button value="month">本月</t-radio-button>
           </t-radio-group>
@@ -59,7 +59,8 @@ import { rankByPeriod, type RankItem } from '../index'
 
 const props = defineProps<{ tasks: BackupTask[] }>()
 const router = useRouter()
-const period = ref<'week' | 'month'>('week')
+const failedPeriod = ref<'week' | 'month'>('week')
+const countPeriod = ref<'week' | 'month'>('week')
 
 type Row = RankItem & { trend: null }
 
@@ -68,8 +69,8 @@ function withTrend(items: RankItem[]): Row[] {
   return items.map((item) => ({ ...item, trend: null }))
 }
 
-const failedData = computed(() => withTrend(rankByPeriod(props.tasks, period.value, 'failed')))
-const countData = computed(() => withTrend(rankByPeriod(props.tasks, period.value, 'count')))
+const failedData = computed(() => withTrend(rankByPeriod(props.tasks, failedPeriod.value, 'failed')))
+const countData = computed(() => withTrend(rankByPeriod(props.tasks, countPeriod.value, 'count')))
 
 const columns: PrimaryTableCol<Row>[] = [
   { align: 'center', colKey: 'index', title: '排名', width: 70, fixed: 'left' },
